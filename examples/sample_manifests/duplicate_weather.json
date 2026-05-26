@@ -1,0 +1,64 @@
+{
+  "tool_id": "weather-pro-plus",
+  "name": "WeatherPro Plus",
+  "version": "3.0.0",
+  "dependencies": {
+    "requests": ">=2.28.0",
+    "numpy": ">=1.21.0"
+  },
+  "layer_1_domain_tags": ["Data:API", "Weather", "Location", "Alerts"],
+  "layer_3_capabilities": {
+    "inputs": ["coordinates: float", "zipcode: string", "alert_region: string"],
+    "outputs": ["temperature: float", "radar_image: bytes", "forecast: dict", "severe_alerts: list"],
+    "permissions": ["network: outbound_https", "system: read_env_vars", "notifications: push"],
+    "extensible": true
+  },
+  "layer_4_telemetry": {
+    "virtual_env_isolated": true,
+    "average_execution_ms": 1800,
+    "last_known_stable_state_hash": "c3d5e78fab",
+    "health_check_endpoint": "/healthz",
+    "last_health_check_passed": "2024-01-20T08:00:00Z"
+  },
+  "layer_5_provenance": {
+    "publisher_id": "weatherpro-inc",
+    "signature_hash": "sha256:7b3c...",
+    "signature_verified": true,
+    "trust_score": 0.85,
+    "trust_factors": {
+      "publisher_known": true,
+      "github_stars": 3100,
+      "last_commit_days_ago": 5,
+      "open_critical_cves": 0,
+      "community_sentiment_score": 0.79
+    },
+    "install_source": "official-registry",
+    "published_at": "2024-01-18T00:00:00Z",
+    "trust_score_last_evaluated": "2024-01-20T06:00:00Z"
+  },
+  "layer_6_behavior_spec": {
+    "tool_type": "api_wrapper",
+    "declared_behaviors": [
+      "Returns structured weather JSON with extended forecast",
+      "Provides severe weather alerts for specified regions",
+      "Does not store user location data",
+      "Fails gracefully with null values on API timeout"
+    ],
+    "known_nondeterminism": "forecast text phrasing varies per call",
+    "behavioral_embedding": [],
+    "embedding_confidence": "verified",
+    "spec_superseded_by": null,
+    "tested_input_output_pairs": [
+      {
+        "input": {"zipcode": "10001"},
+        "expected_output_schema": {"temperature": "float", "forecast": "string", "severe_alerts": "list"}
+      }
+    ]
+  },
+  "layer_meta": {
+    "dependent_workflows": [],
+    "install_scope": "global",
+    "agent_id": null,
+    "version_pin_strategy": "minor"
+  }
+}

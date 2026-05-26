@@ -1,0 +1,22 @@
+# Python bytecode & cache
+__pycache__/
+*.pyc
+
+# Testing and linting
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
+
+base-idea.md
+.engram/
+.engramignore
+.agents/
+AGENTS.md

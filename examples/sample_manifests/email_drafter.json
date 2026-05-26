@@ -1,0 +1,65 @@
+{
+  "tool_id": "smart-email-drafter",
+  "name": "Smart Email Drafter",
+  "version": "1.0.0",
+  "dependencies": {},
+  "layer_1_domain_tags": ["Communication", "Email", "LLM"],
+  "layer_3_capabilities": {
+    "inputs": ["received_email: string", "tone: string"],
+    "outputs": ["subject: string", "body: string"],
+    "permissions": ["network: none"],
+    "extensible": false
+  },
+  "layer_4_telemetry": {
+    "virtual_env_isolated": true,
+    "average_execution_ms": 2200,
+    "last_known_stable_state_hash": "b7e4f12aac",
+    "health_check_endpoint": "/healthz"
+  },
+  "layer_5_provenance": {
+    "publisher_id": "email-ai-labs",
+    "signature_hash": "sha256:9a1b...",
+    "signature_verified": true,
+    "trust_score": 0.88,
+    "trust_factors": {
+      "publisher_known": true,
+      "github_stars": 1800,
+      "last_commit_days_ago": 30,
+      "open_critical_cves": 0,
+      "community_sentiment_score": 0.78
+    },
+    "install_source": "official-registry",
+    "published_at": "2024-02-01T00:00:00Z",
+    "trust_score_last_evaluated": "2024-02-10T12:00:00Z"
+  },
+  "layer_6_behavior_spec": {
+    "tool_type": "llm_powered",
+    "declared_behaviors": [
+      "Drafts email replies given a received email and tone instruction",
+      "Does not send emails — only generates draft text",
+      "Does not store or log email content between sessions"
+    ],
+    "known_nondeterminism": "Output phrasing varies per call even with identical input",
+    "behavioral_embedding": [0.412, -0.701, 0.234, 0.891, -0.156],
+    "embedding_confidence": "verified",
+    "spec_superseded_by": null,
+    "tested_input_output_pairs": [
+      {
+        "input": {
+          "received_email": "Hi, can we reschedule?",
+          "tone": "professional"
+        },
+        "expected_output_schema": {
+          "subject": "string",
+          "body": "string"
+        }
+      }
+    ]
+  },
+  "layer_meta": {
+    "dependent_workflows": ["inbox-manager-agent"],
+    "install_scope": "global",
+    "agent_id": null,
+    "version_pin_strategy": "minor"
+  }
+}

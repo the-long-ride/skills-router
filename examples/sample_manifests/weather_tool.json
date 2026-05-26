@@ -1,0 +1,64 @@
+{
+  "tool_id": "global-meteo-suite",
+  "name": "GlobalMeteo Suite",
+  "version": "2.1.0",
+  "dependencies": {
+    "requests": ">=2.25.0",
+    "numpy": "==1.21.0"
+  },
+  "layer_1_domain_tags": ["Data:API", "Weather", "Location"],
+  "layer_3_capabilities": {
+    "inputs": ["coordinates: float", "zipcode: string"],
+    "outputs": ["temperature: float", "radar_image: bytes", "forecast: dict"],
+    "permissions": ["network: outbound_https", "system: read_env_vars"],
+    "extensible": false
+  },
+  "layer_4_telemetry": {
+    "virtual_env_isolated": true,
+    "average_execution_ms": 1450,
+    "last_known_stable_state_hash": "a8f9c21def",
+    "health_check_endpoint": "/healthz",
+    "last_health_check_passed": "2024-01-15T10:30:00Z"
+  },
+  "layer_5_provenance": {
+    "publisher_id": "meteo-org",
+    "signature_hash": "sha256:3f2a...",
+    "signature_verified": true,
+    "trust_score": 0.91,
+    "trust_factors": {
+      "publisher_known": true,
+      "github_stars": 4200,
+      "last_commit_days_ago": 12,
+      "open_critical_cves": 0,
+      "community_sentiment_score": 0.84
+    },
+    "install_source": "official-registry",
+    "published_at": "2024-01-10T00:00:00Z",
+    "trust_score_last_evaluated": "2024-01-15T10:00:00Z"
+  },
+  "layer_6_behavior_spec": {
+    "tool_type": "api_wrapper",
+    "declared_behaviors": [
+      "Returns structured weather JSON",
+      "Does not store user location data",
+      "Fails gracefully with null values on API timeout"
+    ],
+    "known_nondeterminism": "forecast text phrasing varies per call",
+    "behavioral_embedding": [],
+    "embedding_confidence": "verified",
+    "spec_superseded_by": null,
+    "tested_input_output_pairs": [
+      {
+        "input": {"zipcode": "10001"},
+        "expected_output_schema": {"temperature": "float", "forecast": "string"}
+      }
+    ]
+  },
+  "layer_meta": {
+    "dependent_workflows": ["daily-brief-agent", "travel-planner-agent"],
+    "install_scope": "global",
+    "agent_id": null,
+    "installed_at": "2024-01-15T09:00:00Z",
+    "version_pin_strategy": "minor"
+  }
+}

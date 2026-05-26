@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skills-router"
+version = "0.0.1"
+description = "Skills Router — trust-gated install, update indexing, and routing for AI-agent skills and plugins"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [
+    {name = "the-long-ride"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development",
+]
+
+dependencies = [
+    "numpy>=1.23.0",
+    "packaging>=22.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+ml = [
+    "sentence-transformers>=2.2.0",
+]
+pgvector = [
+    "psycopg2-binary>=2.9.0",
+]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+dev = [
+    "skills-router[ml,pgvector,test]",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+skills-router = "skills_router.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/the-long-ride/skills-router"
+Repository = "https://github.com/the-long-ride/skills-router"
+Issues = "https://github.com/the-long-ride/skills-router/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
