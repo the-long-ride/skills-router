@@ -1,6 +1,6 @@
 # Skills Router
 
-[![Version](https://img.shields.io/badge/version-v0.0.3-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/pypi/v/skills-router.svg)](https://pypi.org/project/skills-router/)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![Author](https://img.shields.io/badge/author-the--long--ride-green.svg)](https://github.com/the-long-ride)
 [![Build Status](https://img.shields.io/badge/tests-225%20passed-success.svg)](tests/)

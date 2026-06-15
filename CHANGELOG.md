@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.4] - 2026-06-15
+
+### Added
+- Added `connect --check` to verify local MCP tool availability and managed
+  bridge file presence for AI-agent hosts.
+- Added `connect --apply` to write each host's recommended bridge artifact with
+  one command.
+- Added expanded CLI help coverage with a dedicated `help` subcommand and
+  command-specific usage output.
+
+### Changed
+- Simplified `connect` usage to accept positional agent targets such as
+  `skills-router connect codex --apply --check`.
+- Centralized Python package versioning in `skills_router._version` and made
+  setuptools read package version from that single source.
+- Replaced hard-coded README version badges with dynamic PyPI version badges.
+
 ## [0.0.3] - 2026-06-11
 
 ### Added

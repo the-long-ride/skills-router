@@ -1,6 +1,6 @@
 """Skills Router package."""
 
-__version__ = "0.0.3"
+from skills_router._version import __version__
 
 from skills_router.config import SkillsRouterConfig
 from skills_router.orchestrator import SkillsRouterOrchestrator

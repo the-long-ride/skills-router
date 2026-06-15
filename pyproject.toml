@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "skills-router"
-version = "0.0.3"
+dynamic = ["version"]
 description = "Skills Router — trust-gated install, update indexing, and routing for AI-agent skills and plugins"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -56,6 +56,9 @@ Issues = "https://github.com/the-long-ride/skills-router/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "skills_router._version.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
