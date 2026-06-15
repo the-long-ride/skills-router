@@ -150,6 +150,29 @@ def test_write_bridge_skill_creates_managed_skill_file(tmp_path):
     assert "# Changed Skill Bridge" in text
 
 
+def test_check_agent_connection_reports_ready_after_bridge_write(tmp_path):
+    from skills_router.agent_bridge.connect import (
+        build_agent_connection,
+        check_agent_connection,
+        write_bridge_instructions,
+    )
+
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path)
+    result = build_agent_connection(config, target="codex", agent_id="codex-local")
+
+    before = check_agent_connection(config, result)
+    write_bridge_instructions(config, result)
+    refreshed = build_agent_connection(config, target="codex", agent_id="codex-local")
+    after = check_agent_connection(config, refreshed)
+
+    assert before["status"] == "WARN"
+    assert before["ready"] is False
+    assert after["status"] == "OK"
+    assert after["ready"] is True
+    assert after["mcp_tools"]["missing"] == []
+
+
 def test_parse_install_for_me_uses_workspace_scope():
     from skills_router.agent_bridge.parser import parse_slash_command
 

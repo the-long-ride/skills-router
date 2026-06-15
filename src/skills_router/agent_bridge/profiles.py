@@ -18,6 +18,7 @@ class AgentProfile:
     notes: tuple[str, ...] = ()
     workspace_skill_dirs: tuple[str, ...] = ()
     global_skill_dirs: tuple[str, ...] = ()
+    preferred_bridge: str = "instructions"
 
 
 DEFAULT_ALL_AGENT_TARGETS: tuple[str, ...] = (
@@ -55,6 +56,7 @@ _PROFILES: dict[str, AgentProfile] = {
         ),
         workspace_skill_dirs=(".codex/skills", ".agents/skills"),
         global_skill_dirs=("$CODEX_HOME/skills", "~/.codex/skills"),
+        preferred_bridge="instructions",
     ),
     "codex-ide": AgentProfile(
         target="codex-ide",
@@ -87,6 +89,7 @@ _PROFILES: dict[str, AgentProfile] = {
         ),
         workspace_skill_dirs=(".codex/skills", ".agents/skills"),
         global_skill_dirs=("$CODEX_HOME/skills", "~/.codex/skills"),
+        preferred_bridge="skill",
     ),
     "cline": AgentProfile(
         target="cline",

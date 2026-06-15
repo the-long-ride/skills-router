@@ -133,12 +133,11 @@ workspace skill folder, such as `.codex/skills/skills-router/SKILL.md`.
 Use connect when a human wants to attach Skills Router to an AI-agent host:
 
 ```powershell
-skills-router connect --target codex --json
-skills-router connect --target codex-ide --write-skill
-skills-router connect --target codex-ide --write-skill --dry-run
-skills-router connect --target cursor --write-instructions
-skills-router connect --target cursor --write-instructions --dry-run
-skills-router connect --target codex --from-source --json
+skills-router connect codex --apply --check --json
+skills-router connect codex-ide --apply --check --json
+skills-router connect cursor --apply
+skills-router connect cursor --apply --dry-run
+skills-router connect codex --from-source --json
 ```
 
 Expected behavior:
@@ -147,8 +146,11 @@ Expected behavior:
 - Return the compact bridge prompt, target instruction file paths, and target
   skill folder paths.
 - In `--from-source` mode, use Python plus `PYTHONPATH` to run this checkout.
+- `--apply` writes the recommended bridge artifact for the target host.
 - Only write instruction files when `--write-instructions` is present.
 - Only write agent skill files when `--write-skill` is present.
+- `--check` verifies the local MCP tool surface and whether a managed bridge
+  file is already present for the target.
 - `--write-skill` creates or updates only the managed
   `skills-router/SKILL.md` file and refuses to overwrite unmanaged skill files.
 - `--dry-run` previews instruction-file and skill-file actions without writing

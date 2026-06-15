@@ -51,6 +51,7 @@ def build_agent_connection(
         "target": profile.target,
         "display_name": profile.display_name,
         "agent_id": agent_id,
+        "preferred_bridge": profile.preferred_bridge,
         "mode": "from_source" if from_source else "installed_cli",
         "mcp_config": {"mcpServers": {"skills-router": mcp_server}},
         "mcp_server": mcp_server,
@@ -62,6 +63,122 @@ def build_agent_connection(
             f"Connection kit ready for {profile.display_name}. Add the MCP "
             "server config and the bridge prompt to the target instruction file."
         ),
+    }
+
+
+def apply_agent_connection(
+    config: SkillsRouterConfig,
+    connection: dict[str, Any],
+    *,
+    dry_run: bool = False,
+    instruction_file: str | None = None,
+    skill_dir: str | None = None,
+) -> dict[str, Any]:
+    """Apply the recommended bridge artifact for the target."""
+    preferred = str(connection.get("preferred_bridge") or "instructions")
+    result: dict[str, Any] = {"status": "OK", "preferred_bridge": preferred}
+    if preferred == "skill":
+        result["written_skill"] = write_bridge_skill(
+            config,
+            connection,
+            skill_dir=skill_dir,
+            dry_run=dry_run,
+        )
+        return result
+
+    result["written_instruction"] = write_bridge_instructions(
+        config,
+        connection,
+        instruction_file=instruction_file,
+        dry_run=dry_run,
+    )
+    return result
+
+
+def check_agent_connection(
+    config: SkillsRouterConfig,
+    connection: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify local MCP tool readiness and bridge file presence for a target."""
+    from skills_router.mcp_server import handle_request
+
+    initialize = handle_request(
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize"},
+        config,
+    )
+    tools = handle_request(
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+        config,
+    )
+
+    server_info = initialize["result"]["serverInfo"]
+    tool_names = sorted(
+        tool["name"] for tool in tools["result"]["tools"] if tool.get("name")
+    )
+    required_tools = [
+        "get_agent_prompt",
+        "parse_slash_command",
+        "refine_routes",
+        "route_task",
+        "run_slash_command",
+    ]
+    missing_tools = [name for name in required_tools if name not in tool_names]
+
+    instruction_files = connection.get("instruction_files") or []
+    skill_dirs = connection.get("skill_dirs") or []
+    managed_instruction_count = sum(
+        1 for item in instruction_files if item.get("managed_bridge_present")
+    )
+    managed_skill_count = sum(1 for item in skill_dirs if item.get("skill_exists"))
+    writable_bridge_targets = [
+        item["path"]
+        for item in instruction_files
+        if item.get("recommended")
+    ] + [
+        item["skill_path"]
+        for item in skill_dirs
+        if item.get("recommended")
+    ]
+
+    warnings: list[str] = []
+    if missing_tools:
+        warnings.append(
+            "Missing required MCP tools: " + ", ".join(missing_tools)
+        )
+    if managed_instruction_count == 0 and managed_skill_count == 0:
+        warnings.append(
+            "No managed bridge instructions or Skills Router SKILL.md were found "
+            "for the target workspace yet."
+        )
+
+    ready = not missing_tools and (managed_instruction_count > 0 or managed_skill_count > 0)
+    return {
+        "status": "OK" if ready else "WARN",
+        "ready": ready,
+        "target": connection.get("target"),
+        "server": {
+            "name": server_info.get("name"),
+            "version": server_info.get("version"),
+            "protocol_version": initialize["result"].get("protocolVersion"),
+        },
+        "mcp_tools": {
+            "required": required_tools,
+            "available": tool_names,
+            "missing": missing_tools,
+        },
+        "bridge_files": {
+            "managed_instruction_count": managed_instruction_count,
+            "managed_skill_count": managed_skill_count,
+            "instruction_files": instruction_files,
+            "skill_dirs": skill_dirs,
+        },
+        "writable_bridge_targets": writable_bridge_targets,
+        "recommendation": (
+            "Connection is ready for an AI agent."
+            if ready
+            else "Add the bridge prompt or managed SKILL.md, then connect the host to the MCP server."
+        ),
+        "warnings": warnings,
     }
 
 
@@ -177,10 +294,15 @@ def _instruction_entry(
     recommended: bool,
 ) -> dict[str, Any]:
     path = _resolve_workspace_path(raw, config, label="Instruction files")
+    managed_bridge_present = False
+    if path.exists():
+        text = path.read_text(encoding="utf-8")
+        managed_bridge_present = BEGIN_MARKER in text and END_MARKER in text
     return {
         "configured": raw,
         "path": str(path),
         "exists": path.exists(),
+        "managed_bridge_present": managed_bridge_present,
         "recommended": recommended,
     }
 
@@ -193,12 +315,19 @@ def _skill_dir_entry(
 ) -> dict[str, Any]:
     path = _resolve_workspace_path(raw, config, label="Skill directories")
     skill_path = path / "skills-router" / "SKILL.md"
+    managed_skill_present = False
+    if skill_path.exists():
+        text = skill_path.read_text(encoding="utf-8")
+        managed_skill_present = (
+            SKILL_BEGIN_MARKER in text and SKILL_END_MARKER in text
+        )
     return {
         "configured": raw,
         "path": str(path),
         "skill_path": str(skill_path),
         "exists": path.exists(),
         "skill_exists": skill_path.exists(),
+        "managed_skill_present": managed_skill_present,
         "recommended": recommended,
     }
 

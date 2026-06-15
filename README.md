@@ -444,11 +444,10 @@ lists are enforced for the calling host.
 Generate a setup kit for an agent host with:
 
 ```bash
-skills-router connect --target codex --json
-skills-router connect --target codex-ide --from-source --json
-skills-router connect --target codex-ide --write-skill
-skills-router connect --target cursor --write-instructions
-skills-router connect --target codex --from-source --json
+skills-router connect codex --apply --check --json
+skills-router connect codex --from-source --json
+skills-router connect codex-ide --apply --check --json
+skills-router connect cursor --apply
 ```
 
 `connect` returns the MCP server config, target instruction file paths, bridge
@@ -456,6 +455,10 @@ prompt, skill folder paths, and CLI fallback command. `--write-instructions`
 writes a managed bridge prompt block to the target's first workspace instruction
 file. `--write-skill` writes a compact managed `SKILL.md` to the target's first
 workspace skill folder, such as `.codex/skills/skills-router/SKILL.md`.
+`--check` verifies that the local MCP server exposes the expected tool surface
+and whether a managed bridge file is already present for that target.
+`--apply` writes the recommended bridge artifact for the target, so most setups
+do not need host-specific write flags.
 
 Render only target-specific bridge text with:
 

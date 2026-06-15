@@ -25,6 +25,7 @@ from skills_router.storage.memory_store import MemoryBrainIndexStore
 console = Console()
 COMMAND_NAMES = {
     "analyze",
+    "help",
     "install",
     "uninstall",
     "index",
@@ -44,6 +45,33 @@ EXIT_SUCCESS = 0
 EXIT_ERROR = 1
 EXIT_REJECTED = 2
 EXIT_CANCELLED = 3
+
+
+class SkillsRouterArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser with expanded top-level help for subcommands."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._subparsers_action: argparse._SubParsersAction | None = None
+
+    def format_help(self) -> str:
+        help_text = super().format_help()
+        if self.prog != "skills-router" or self._subparsers_action is None:
+            return help_text
+
+        sections: list[str] = []
+        for subparser in self._subparsers_action.choices.values():
+            sections.append(subparser.format_help().rstrip())
+
+        if not sections:
+            return help_text
+
+        detailed_help = "\n\n".join(sections)
+        return (
+            f"{help_text.rstrip()}\n\n"
+            "Detailed command help:\n\n"
+            f"{detailed_help}\n"
+        )
 
 
 def _build_store(config: SkillsRouterConfig) -> AbstractBrainIndexStore:
@@ -924,19 +952,32 @@ def cmd_prompt(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
 def cmd_connect(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
     """Render or write AI-agent connection setup."""
     from skills_router.agent_bridge.connect import (
+        apply_agent_connection,
         build_agent_connection,
+        check_agent_connection,
         write_bridge_instructions,
         write_bridge_skill,
     )
 
     try:
+        target = getattr(args, "target_name", None) or args.target
         result = build_agent_connection(
             config,
-            target=args.target,
+            target=target,
             agent_id=args.agent_id,
             detail=args.detail,
             from_source=args.from_source,
         )
+        if getattr(args, "apply", False):
+            result.update(
+                apply_agent_connection(
+                    config,
+                    result,
+                    instruction_file=args.instruction_file,
+                    skill_dir=getattr(args, "skill_dir", None),
+                    dry_run=bool(getattr(args, "dry_run", False)),
+                )
+            )
         if args.write_instructions:
             result["written_instruction"] = write_bridge_instructions(
                 config,
@@ -951,6 +992,17 @@ def cmd_connect(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
                 skill_dir=getattr(args, "skill_dir", None),
                 dry_run=bool(getattr(args, "dry_run", False)),
             )
+        if getattr(args, "check", False):
+            refreshed = build_agent_connection(
+                config,
+                target=target,
+                agent_id=args.agent_id,
+                detail=args.detail,
+                from_source=args.from_source,
+            )
+            result["instruction_files"] = refreshed["instruction_files"]
+            result["skill_dirs"] = refreshed["skill_dirs"]
+            result["connection_check"] = check_agent_connection(config, refreshed)
         result["dry_run"] = bool(getattr(args, "dry_run", False))
     except ValueError as exc:
         if args.json_output:
@@ -1018,6 +1070,20 @@ def cmd_connect(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
             f"[green]{written['action'].title()} bridge skill:[/green] "
             f"{written['path']}"
         )
+    if result.get("connection_check"):
+        check = result["connection_check"]
+        console.print(Panel(
+            check["recommendation"],
+            title=(
+                "[bold green]Connection Ready[/bold green]"
+                if check["ready"]
+                else "[bold yellow]Connection Check[/bold yellow]"
+            ),
+            border_style="green" if check["ready"] else "yellow",
+        ))
+        if check.get("warnings"):
+            for warning in check["warnings"]:
+                console.print(f"[yellow]- {warning}[/yellow]")
     if not result.get("written_instruction") and not result.get("written_skill"):
         console.print(Panel(
             result["bridge_prompt"],
@@ -1083,7 +1149,7 @@ def cmd_route(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
-    parser = argparse.ArgumentParser(
+    parser = SkillsRouterArgumentParser(
         prog="skills-router",
         description="Skills Router - manage agent skills, plugins, and routes",
     )
@@ -1093,6 +1159,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     subs = parser.add_subparsers(dest="command", help="Available commands")
+    parser._subparsers_action = subs
 
     # -- analyze ---------------------------------------------------------------
     p_analyze = subs.add_parser(
@@ -1344,6 +1411,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Render MCP config and optional bridge instructions for an AI-agent host",
     )
     p_connect.add_argument(
+        "target_name",
+        nargs="?",
+        help="Agent target or alias",
+    )
+    p_connect.add_argument(
         "--target",
         default="codex",
         help="Agent target or alias",
@@ -1365,6 +1437,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate MCP config that runs this checkout through Python/PYTHONPATH",
     )
     p_connect.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply the recommended bridge file for the target host",
+    )
+    p_connect.add_argument(
         "--write-instructions",
         action="store_true",
         help="Write or update a managed bridge prompt block in an instruction file",
@@ -1373,6 +1450,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--write-skill",
         action="store_true",
         help="Write or update a managed Skills Router SKILL.md in the target skill folder",
+    )
+    p_connect.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify the local MCP tool surface and whether bridge files are present",
     )
     p_connect.add_argument(
         "--dry-run",
@@ -1437,6 +1519,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_json_arg(p_route)
 
+    # -- help ------------------------------------------------------------------
+    p_help = subs.add_parser(
+        "help",
+        help="Show top-level or command-specific help",
+    )
+    p_help.add_argument(
+        "topic",
+        nargs="?",
+        help="Optional command name to describe",
+    )
+
     return parser
 
 
@@ -1484,6 +1577,17 @@ def main() -> None:
         "chat": cmd_chat,
         "route": cmd_route,
     }
+
+    if args.command == "help":
+        if args.topic:
+            subparser = getattr(parser, "_subparsers_action", None)
+            target = subparser.choices.get(args.topic) if subparser else None
+            if target is None:
+                parser.error(f"unknown help topic: {args.topic}")
+            target.print_help()
+        else:
+            parser.print_help()
+        sys.exit(0)
 
     handler = commands.get(args.command)
     if handler:

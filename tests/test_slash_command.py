@@ -347,6 +347,7 @@ def test_cmd_connect_json_outputs_mcp_config(tmp_path, capsys):
         from_source=False,
         write_instructions=False,
         instruction_file=None,
+        check=True,
         json_output=True,
     )
 
@@ -357,6 +358,7 @@ def test_cmd_connect_json_outputs_mcp_config(tmp_path, capsys):
     assert '"target": "codex"' in out
     assert '"command": "skills-router"' in out
     assert '"bridge_prompt": ' in out
+    assert '"connection_check": {' in out
 
 
 def test_cmd_connect_dry_run_does_not_write_instruction_file(tmp_path, capsys):
@@ -374,6 +376,7 @@ def test_cmd_connect_dry_run_does_not_write_instruction_file(tmp_path, capsys):
         write_instructions=True,
         instruction_file=instruction_file,
         dry_run=True,
+        check=False,
         json_output=True,
     )
 
@@ -402,6 +405,7 @@ def test_cmd_connect_write_skill_creates_skill_file(tmp_path, capsys):
         instruction_file=None,
         skill_dir=None,
         dry_run=False,
+        check=True,
         json_output=True,
     )
 
@@ -416,6 +420,71 @@ def test_cmd_connect_write_skill_creates_skill_file(tmp_path, capsys):
     out = capsys.readouterr().out
     assert '"written_skill": {' in out
     assert '"target": "codex-ide"' in out
+    assert '"ready": true' in out
+
+
+def test_cmd_connect_apply_uses_recommended_bridge_for_codex(tmp_path, capsys):
+    """Connect apply should use the target's recommended bridge artifact."""
+    from skills_router.cli import cmd_connect
+
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path)
+    args = argparse.Namespace(
+        target_name="codex",
+        target="codex",
+        agent_id="codex-local",
+        detail="compact",
+        from_source=False,
+        apply=True,
+        write_instructions=False,
+        write_skill=False,
+        instruction_file=None,
+        skill_dir=None,
+        dry_run=False,
+        check=True,
+        json_output=True,
+    )
+
+    rc = cmd_connect(args, config)
+
+    assert rc == 0
+    assert (tmp_path / "AGENTS.md").exists()
+    out = capsys.readouterr().out
+    assert '"preferred_bridge": "instructions"' in out
+    assert '"written_instruction": {' in out
+    assert '"ready": true' in out
+
+
+def test_cmd_connect_apply_uses_recommended_bridge_for_codex_ide(tmp_path, capsys):
+    """Connect apply should pick the skill bridge for codex-ide."""
+    from skills_router.cli import cmd_connect
+
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path)
+    args = argparse.Namespace(
+        target_name="codex-ide",
+        target="codex",
+        agent_id="codex-ide-local",
+        detail="compact",
+        from_source=False,
+        apply=True,
+        write_instructions=False,
+        write_skill=False,
+        instruction_file=None,
+        skill_dir=None,
+        dry_run=False,
+        check=True,
+        json_output=True,
+    )
+
+    rc = cmd_connect(args, config)
+
+    assert rc == 0
+    assert (tmp_path / ".codex" / "skills" / "skills-router" / "SKILL.md").exists()
+    out = capsys.readouterr().out
+    assert '"preferred_bridge": "skill"' in out
+    assert '"written_skill": {' in out
+    assert '"ready": true' in out
 
 
 def test_cmd_uninstall_dry_run_preserves_tool(tmp_path, capsys):
