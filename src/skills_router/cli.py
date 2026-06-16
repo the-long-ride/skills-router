@@ -15,7 +15,9 @@ from typing import Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
+from skills_router import __version__
 from skills_router.config import SkillsRouterConfig
 from skills_router.metrics import REGISTRY as METRICS
 from skills_router.orchestrator import SkillsRouterOrchestrator
@@ -72,6 +74,41 @@ class SkillsRouterArgumentParser(argparse.ArgumentParser):
             "Detailed command help:\n\n"
             f"{detailed_help}\n"
         )
+
+    def print_help(self, file: Any | None = None) -> None:
+        help_text = self.format_help()
+        if file is not None:
+            file.write(help_text)
+            return
+        console.print(self._highlight_help(help_text))
+
+    @staticmethod
+    def _highlight_help(help_text: str) -> Text:
+        text = Text()
+        header_lines = {
+            "positional arguments:",
+            "options:",
+            "Detailed command help:",
+        }
+
+        for raw_line in help_text.splitlines(keepends=True):
+            line = raw_line.rstrip("\n")
+            suffix = "\n" if raw_line.endswith("\n") else ""
+
+            if line.startswith("usage: "):
+                text.append("usage:", style="bold cyan")
+                text.append(line[len("usage:"):], style="bold white")
+            elif line in header_lines:
+                text.append(line, style="bold yellow")
+            elif line.startswith("Skills Router - "):
+                text.append(line, style="bold green")
+            else:
+                text.append(line)
+
+            if suffix:
+                text.append(suffix)
+
+        return text
 
 
 def _build_store(config: SkillsRouterConfig) -> AbstractBrainIndexStore:
@@ -1152,6 +1189,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = SkillsRouterArgumentParser(
         prog="skills-router",
         description="Skills Router - manage agent skills, plugins, and routes",
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show skills-router version and exit",
     )
     parser.add_argument(
         "--data-dir",
