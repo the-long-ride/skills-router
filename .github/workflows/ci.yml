@@ -28,6 +28,12 @@ on:
       - "CHANGELOG.md"
       - "GUIDELINE.md"
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Allow publish/release jobs when manually running this workflow on a v* tag"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -143,7 +149,11 @@ jobs:
     needs:
       - python
       - package
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' &&
+        startsWith(github.ref, 'refs/tags/v') &&
+        inputs.publish_release == true)
     permissions:
       contents: read
       id-token: write
@@ -200,7 +210,11 @@ jobs:
     needs:
       - pypi-publish
       - node-wrapper
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' &&
+        startsWith(github.ref, 'refs/tags/v') &&
+        inputs.publish_release == true)
 
     steps:
       - name: Check out source
@@ -285,7 +299,11 @@ jobs:
     needs:
       - pypi-publish
       - npm-publish
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' &&
+        startsWith(github.ref, 'refs/tags/v') &&
+        inputs.publish_release == true)
     permissions:
       contents: write
 
