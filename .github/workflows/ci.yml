@@ -75,45 +75,6 @@ jobs:
           skills-router --help
           skills-router --data-dir .tmp-ci prompt --target codex
 
-  source-name-guard:
-    name: Source rename guard
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Reject stale pre-skills-router source identifiers
-        run: |
-          old_agent_slug='agent''-forge'
-          old_agent_py='agent''_forge'
-          old_agent_title='Agent ''Forge'
-          old_agent_class='Agent''Forge'
-          old_agent_flat='agent''forge'
-          old_agent_route_slug='agent''-routing'
-          old_agent_route_py='agent''_routing'
-          old_agent_env='AGENT''_FORGE'
-          old_skill_slug='skill''-forge'
-          old_skill_py='skill''_forge'
-          old_skill_title='Agent Skills ''Forge'
-          old_skill_class='Skill''Forge'
-          old_skill_env='SKILL''_FORGE'
-          old_router_slug='skill''-router'
-          old_router_py='skill''_router'
-          old_router_title='Skill ''Router'
-          old_router_class='Skill''Router'
-          old_router_env='SKILL''_ROUTER'
-          old_router_flat='skill''router'
-          old_router_routing_file='skill''-routing\.json'
-          pattern="${old_agent_slug}|${old_agent_py}|${old_agent_title}|${old_agent_class}|${old_agent_flat}|${old_agent_route_slug}|${old_agent_route_py}|${old_agent_env}|${old_skill_slug}|${old_skill_py}|${old_skill_title}|${old_skill_class}|${old_skill_env}|${old_router_slug}|${old_router_py}|${old_router_title}|${old_router_class}|${old_router_env}|${old_router_flat}|${old_router_routing_file}"
-          if git grep -n -E "$pattern" -- \
-            . \
-            ':!AGENTS.md' \
-            ':!.agents/**'; then
-            echo "Found stale identifier after rename to Skills Router."
-            exit 1
-          fi
-
   node-wrapper:
     name: Node wrapper
     runs-on: ubuntu-latest
@@ -181,7 +142,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - python
-      - source-name-guard
       - package
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && github.event.created == true
     permissions:

@@ -67,7 +67,7 @@ For `/skills-router refine` in chat, workspace-discovered routes default to
 Install from this checkout into the current Python environment:
 
 ```powershell
-cd F:\my-repos\skill-forge
+cd <your skills-router workspace>
 py -m pip install -e .
 ```
 
@@ -81,7 +81,7 @@ py -c "import skills_router; print(skills_router.__file__)"
 Recommended safer setup is a local virtual environment:
 
 ```powershell
-cd F:\my-repos\skill-forge
+cd <your skills-router workspace>
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -U pip
