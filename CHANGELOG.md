@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.5] - 2026-06-16
+
+### Added
+- Added global `-v` and `--version` CLI flags.
+- Added decorated CLI help output highlighting for `usage` and section headers.
+- Added manual release workflow input to allow publish/release jobs from
+  `workflow_dispatch` when explicitly enabled on a release tag.
+
+### Changed
+- Expanded help regression coverage so every registered command must appear in
+  `skills-router -h`.
+- Replaced machine-specific local setup paths in the integration guideline with
+  workspace-neutral examples.
+- Removed the legacy source rename guard job from CI.
+
 ## [0.0.4] - 2026-06-15
 
 ### Added
