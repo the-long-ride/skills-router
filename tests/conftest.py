@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
+from pathlib import Path
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from skills_router.config import SkillsRouterConfig
 from skills_router.storage.memory_store import MemoryBrainIndexStore
