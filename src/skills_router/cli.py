@@ -43,6 +43,71 @@ COMMAND_NAMES = {
     "chat",
     "route",
 }
+COMMAND_EXAMPLES: dict[str, list[str]] = {
+    "analyze": [
+        "skills-router analyze github:the-long-ride/skills-router",
+        "skills-router analyze npm:@the-long-ride/skills-router --json",
+    ],
+    "install": [
+        "skills-router install .\\skills-router.json --scope global",
+        "skills-router install github:owner/repo --infer --dry-run",
+    ],
+    "index": [
+        "skills-router index --scope global",
+        "skills-router index --dry-run --json",
+    ],
+    "refine": [
+        "skills-router refine",
+        "skills-router refine reviewer writer --scope global",
+    ],
+    "uninstall": [
+        "skills-router uninstall weather-tool --scope global",
+        "skills-router uninstall weather-tool --dry-run",
+    ],
+    "list": [
+        "skills-router list",
+        "skills-router list --scope global --json",
+    ],
+    "status": [
+        "skills-router status",
+        "skills-router status --json",
+    ],
+    "inspect": [
+        "skills-router inspect weather-tool",
+        "skills-router inspect weather-tool --json",
+    ],
+    "audit": [
+        "skills-router audit --limit 20",
+        "skills-router audit --tool weather-tool --json",
+    ],
+    "watch": [
+        "skills-router watch --once",
+        "skills-router watch --interval 300 --metrics-port 9090",
+    ],
+    "mcp": [
+        "skills-router mcp",
+    ],
+    "prompt": [
+        "skills-router prompt --target codex",
+        "skills-router prompt --target claude --detail full",
+    ],
+    "connect": [
+        "skills-router connect codex --check",
+        "skills-router connect --target codex --write-instructions --instruction-file AGENTS.md",
+    ],
+    "chat": [
+        "skills-router chat /skills-router route find me reviewer skill",
+        "skills-router chat /skills-router install github:owner/repo --parse-only",
+    ],
+    "route": [
+        "skills-router route fix flaky ci test",
+        "skills-router route add login form --target codex --include-inactive",
+    ],
+    "help": [
+        "skills-router help",
+        "skills-router help install",
+    ],
+}
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
 EXIT_REJECTED = 2
@@ -50,30 +115,18 @@ EXIT_CANCELLED = 3
 
 
 class SkillsRouterArgumentParser(argparse.ArgumentParser):
-    """ArgumentParser with expanded top-level help for subcommands."""
+    """ArgumentParser with compact top-level help and full subcommand help."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._subparsers_action: argparse._SubParsersAction | None = None
 
     def format_help(self) -> str:
-        help_text = super().format_help()
-        if self.prog != "skills-router" or self._subparsers_action is None:
-            return help_text
-
-        sections: list[str] = []
-        for subparser in self._subparsers_action.choices.values():
-            sections.append(subparser.format_help().rstrip())
-
-        if not sections:
-            return help_text
-
-        detailed_help = "\n\n".join(sections)
-        return (
-            f"{help_text.rstrip()}\n\n"
-            "Detailed command help:\n\n"
-            f"{detailed_help}\n"
-        )
+        if self.prog == "skills-router" and self._subparsers_action is not None:
+            return self._format_top_level_help()
+        if self.prog.startswith("skills-router "):
+            return self._format_subcommand_help()
+        return super().format_help()
 
     def print_help(self, file: Any | None = None) -> None:
         help_text = self.format_help()
@@ -86,9 +139,12 @@ class SkillsRouterArgumentParser(argparse.ArgumentParser):
     def _highlight_help(help_text: str) -> Text:
         text = Text()
         header_lines = {
-            "positional arguments:",
+            "Commands:",
+            "Usage:",
+            "Arguments:",
+            "Options:",
+            "Examples:",
             "options:",
-            "Detailed command help:",
         }
 
         for raw_line in help_text.splitlines(keepends=True):
@@ -109,6 +165,151 @@ class SkillsRouterArgumentParser(argparse.ArgumentParser):
                 text.append(suffix)
 
         return text
+
+    def _format_top_level_help(self) -> str:
+        usage = self.format_usage().rstrip()
+        description = f"\n\n{self.description}" if self.description else ""
+        commands = self._format_command_rows()
+        options = self._format_option_rows()
+        footer = "\nUse: skills-router <command> -h for details."
+        return f"{usage}{description}\n\nCommands:\n{commands}\n\noptions:\n{options}{footer}\n"
+
+    def _format_command_rows(self) -> str:
+        if self._subparsers_action is None:
+            return ""
+
+        commands = list(self._subparsers_action.choices.items())
+        command_help = {
+            action.dest: action.help or ""
+            for action in self._subparsers_action._choices_actions
+        }
+        name_width = max(len(name) for name, _ in commands)
+        help_width = max(len(command_help.get(name, "")) for name, _ in commands)
+
+        rows: list[str] = []
+        for name, subparser in commands:
+            summary = command_help.get(name, "")
+            key_flags = self._command_key_flags(subparser)
+            rows.append(f"  {name:<{name_width}}  {summary:<{help_width}}  {key_flags}".rstrip())
+        return "\n".join(rows)
+
+    def _format_option_rows(self) -> str:
+        rows: list[tuple[str, str]] = []
+        for action in self._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                continue
+            option_label = self._format_action_label(action)
+            rows.append((option_label, action.help or ""))
+
+        label_width = max(len(label) for label, _ in rows)
+        return "\n".join(
+            f"  {label:<{label_width}}  {help_text}".rstrip()
+            for label, help_text in rows
+        )
+
+    @staticmethod
+    def _format_action_label(action: argparse.Action) -> str:
+        parts = list(action.option_strings)
+        if action.metavar:
+            parts[-1] = f"{parts[-1]} {action.metavar}"
+        elif action.choices:
+            choices = ",".join(str(choice) for choice in action.choices)
+            parts[-1] = f"{parts[-1]} {{{choices}}}"
+        elif action.option_strings and action.nargs != 0 and action.dest != "help":
+            parts[-1] = f"{parts[-1]} {action.dest.upper()}"
+        return ", ".join(parts)
+
+    @staticmethod
+    def _command_key_flags(subparser: argparse.ArgumentParser) -> str:
+        items: list[str] = []
+        extra = False
+
+        for action in subparser._actions:
+            if action.dest == "help":
+                continue
+
+            if not action.option_strings:
+                metavar = action.metavar or action.dest
+                if metavar:
+                    items.append(str(metavar))
+                continue
+
+            if "--json" in action.option_strings:
+                continue
+
+            long_flags = [option for option in action.option_strings if option.startswith("--")]
+            if long_flags:
+                items.append(long_flags[0])
+            elif action.option_strings:
+                items.append(action.option_strings[0])
+
+            if len(items) >= 3:
+                remaining = [
+                    candidate
+                    for candidate in subparser._actions[subparser._actions.index(action) + 1 :]
+                    if candidate.dest != "help" and "--json" not in candidate.option_strings
+                ]
+                extra = bool(remaining)
+                break
+
+        if extra:
+            items.append("...")
+        return ", ".join(items)
+
+    def _format_subcommand_help(self) -> str:
+        usage = self.format_usage().replace("usage: ", "", 1).rstrip()
+        summary = getattr(self, "_command_summary", self.description or "")
+        arguments = self._format_argument_rows()
+        options = self._format_subcommand_option_rows()
+        examples = self._format_examples()
+
+        parts = [f"Usage:\n  {usage}"]
+        if summary:
+            parts.append(summary)
+        if arguments:
+            parts.append(f"Arguments:\n{arguments}")
+        if options:
+            parts.append(f"Options:\n{options}")
+        if examples:
+            parts.append(f"Examples:\n{examples}")
+        return "\n\n".join(parts) + "\n"
+
+    def _format_argument_rows(self) -> str:
+        rows: list[tuple[str, str]] = []
+        for action in self._actions:
+            if action.dest == "help" or action.option_strings:
+                continue
+            label = str(action.metavar or action.dest)
+            rows.append((label, action.help or ""))
+
+        if not rows:
+            return ""
+
+        label_width = max(len(label) for label, _ in rows)
+        return "\n".join(
+            f"  {label:<{label_width}}  {help_text}".rstrip()
+            for label, help_text in rows
+        )
+
+    def _format_subcommand_option_rows(self) -> str:
+        rows: list[tuple[str, str]] = []
+        for action in self._actions:
+            if action.dest == "help" or not action.option_strings:
+                continue
+            rows.append((self._format_action_label(action), action.help or ""))
+
+        if not rows:
+            return ""
+
+        label_width = max(len(label) for label, _ in rows)
+        return "\n".join(
+            f"  {label:<{label_width}}  {help_text}".rstrip()
+            for label, help_text in rows
+        )
+
+    def _format_examples(self) -> str:
+        examples = getattr(self, "_command_examples", [])
+        return "\n".join(f"  {example}" for example in examples)
 
 
 def _build_store(config: SkillsRouterConfig) -> AbstractBrainIndexStore:
@@ -1205,10 +1406,16 @@ def build_parser() -> argparse.ArgumentParser:
     subs = parser.add_subparsers(dest="command", help="Available commands")
     parser._subparsers_action = subs
 
+    def add_command_parser(name: str, help_text: str) -> SkillsRouterArgumentParser:
+        command_parser = subs.add_parser(name, help=help_text, description=help_text)
+        command_parser._command_summary = help_text
+        command_parser._command_examples = COMMAND_EXAMPLES.get(name, [])
+        return command_parser
+
     # -- analyze ---------------------------------------------------------------
-    p_analyze = subs.add_parser(
+    p_analyze = add_command_parser(
         "analyze",
-        help="Analyze an npm/GitHub source link and infer a Skills Router manifest",
+        "Analyze an npm/GitHub source link and infer a Skills Router manifest",
     )
     p_analyze.add_argument(
         "source",
@@ -1217,9 +1424,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_arg(p_analyze)
 
     # -- install ---------------------------------------------------------------
-    p_install = subs.add_parser(
+    p_install = add_command_parser(
         "install",
-        help="Install a tool from a manifest, registry package, or source link",
+        "Install a tool from a manifest, registry package, or source link",
     )
     p_install.add_argument(
         "manifest",
@@ -1293,9 +1500,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # -- index -----------------------------------------------------------------
-    p_index = subs.add_parser(
+    p_index = add_command_parser(
         "index",
-        help="Re-index installed skills/plugins and detect routing conflicts",
+        "Re-index installed skills/plugins and detect routing conflicts",
     )
     p_index.add_argument(
         "--scope",
@@ -1309,9 +1516,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_arg(p_index)
 
     # -- refine ----------------------------------------------------------------
-    p_refine = subs.add_parser(
+    p_refine = add_command_parser(
         "refine",
-        help="Discover installed AI-agent skills, then refine routing decisions",
+        "Discover installed AI-agent skills, then refine routing decisions",
     )
     p_refine.add_argument(
         "skillsets",
@@ -1342,9 +1549,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_arg(p_refine)
 
     # -- uninstall ------------------------------------------------------------
-    p_uninstall = subs.add_parser(
+    p_uninstall = add_command_parser(
         "uninstall",
-        help="Remove a skill from Skills Router metadata/routing",
+        "Remove a skill from Skills Router metadata/routing",
     )
     p_uninstall.add_argument(
         "tool_id",
@@ -1363,31 +1570,31 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_arg(p_uninstall)
 
     # -- list ------------------------------------------------------------------
-    p_list = subs.add_parser("list", help="List installed tools")
+    p_list = add_command_parser("list", "List installed tools")
     p_list.add_argument("--scope", help="Filter by scope")
     _add_json_arg(p_list)
 
     # -- status ----------------------------------------------------------------
-    p_status = subs.add_parser(
+    p_status = add_command_parser(
         "status",
-        help="Show Skills Router metadata paths, skill paths, and route state",
+        "Show Skills Router metadata paths, skill paths, and route state",
     )
     _add_json_arg(p_status)
 
     # -- inspect ---------------------------------------------------------------
-    p_inspect = subs.add_parser("inspect", help="Inspect a tool's full Brain Index entry")
+    p_inspect = add_command_parser("inspect", "Inspect a tool's full Brain Index entry")
     p_inspect.add_argument("tool_id", help="Tool ID to inspect")
     _add_json_arg(p_inspect)
 
     # -- audit -----------------------------------------------------------------
-    p_audit = subs.add_parser("audit", help="Query the audit log")
+    p_audit = add_command_parser("audit", "Query the audit log")
     p_audit.add_argument("--tool", help="Filter by tool_id")
     p_audit.add_argument("--case", help="Filter by WG case")
     p_audit.add_argument("--limit", type=int, help="Max entries to show")
     _add_json_arg(p_audit)
 
     # -- watch -----------------------------------------------------------------
-    p_watch = subs.add_parser("watch", help="Registry Watch Daemon (Phase 3)")
+    p_watch = add_command_parser("watch", "Registry Watch Daemon (Phase 3)")
     p_watch.add_argument(
         "--once",
         action="store_true",
@@ -1415,12 +1622,12 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_arg(p_watch)
 
     # -- mcp -------------------------------------------------------------------
-    subs.add_parser("mcp", help="Run local stdio tool server for AI agents")
+    add_command_parser("mcp", "Run local stdio tool server for AI agents")
 
     # -- prompt ----------------------------------------------------------------
-    p_prompt = subs.add_parser(
+    p_prompt = add_command_parser(
         "prompt",
-        help="Render compact bridge prompts for AI-agent hosts",
+        "Render compact bridge prompts for AI-agent hosts",
     )
     p_prompt.add_argument(
         "--target",
@@ -1450,9 +1657,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_arg(p_prompt)
 
     # -- connect ---------------------------------------------------------------
-    p_connect = subs.add_parser(
+    p_connect = add_command_parser(
         "connect",
-        help="Render MCP config and optional bridge instructions for an AI-agent host",
+        "Render MCP config and optional bridge instructions for an AI-agent host",
     )
     p_connect.add_argument(
         "target_name",
@@ -1516,9 +1723,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_arg(p_connect)
 
     # -- chat ------------------------------------------------------------------
-    p_chat = subs.add_parser(
+    p_chat = add_command_parser(
         "chat",
-        help="Parse and execute a chat-shaped /skills-router request",
+        "Parse and execute a chat-shaped /skills-router request",
     )
     p_chat.add_argument("text", nargs="+", help="Full slash request text")
     p_chat.add_argument(
@@ -1543,9 +1750,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_arg(p_chat)
 
     # -- route -----------------------------------------------------------------
-    p_route = subs.add_parser(
+    p_route = add_command_parser(
         "route",
-        help="Find the current Skills Router route for a task description",
+        "Find the current Skills Router route for a task description",
     )
     p_route.add_argument("text", nargs="+", help="Task text to route")
     p_route.add_argument("--scope", help="Limit lookup to global plus this workspace")
@@ -1564,9 +1771,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_arg(p_route)
 
     # -- help ------------------------------------------------------------------
-    p_help = subs.add_parser(
+    p_help = add_command_parser(
         "help",
-        help="Show top-level or command-specific help",
+        "Show top-level or command-specific help",
     )
     p_help.add_argument(
         "topic",
