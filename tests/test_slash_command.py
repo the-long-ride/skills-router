@@ -6,6 +6,8 @@ import argparse
 import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from skills_router.config import SkillsRouterConfig
 
 
@@ -200,7 +202,7 @@ def test_main_strips_slash_status(mock_cmd_status):
 
 
 @patch("skills_router.cli.cmd_connect")
-@patch("sys.argv", ["skills-router", "/skills-router", "/connect", "--target", "codex"])
+@patch("sys.argv", ["skills-router", "/skills-router", "/connect", "--dry-run"])
 def test_main_strips_slash_connect(mock_cmd_connect):
     """Test that '/skills-router /connect' normalises to connect."""
     from skills_router.cli import main
@@ -334,157 +336,115 @@ def test_cmd_install_source_link_falls_back_to_inferred_manifest(
     assert '"source_analysis": {' in capsys.readouterr().out
 
 
-def test_cmd_connect_json_outputs_mcp_config(tmp_path, capsys):
-    """Connect command renders machine-readable setup for an agent host."""
+def test_cmd_connect_dry_run_previews_global_writes(tmp_path, capsys):
+    """Connect dry-run previews detected global agent skill writes."""
     from skills_router.cli import cmd_connect
 
-    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
-    config.workspace_root = str(tmp_path)
-    args = argparse.Namespace(
-        target="codex",
-        agent_id="codex-local",
-        detail="compact",
-        from_source=False,
-        write_instructions=False,
-        instruction_file=None,
-        check=True,
-        json_output=True,
-    )
+    codex_home = tmp_path / "codex-home"
+    (codex_home / "skills").mkdir(parents=True)
+    with patch.dict(
+        "os.environ",
+        {
+            "CODEX_HOME": str(codex_home),
+            "HOME": str(tmp_path / "home"),
+            "USERPROFILE": str(tmp_path / "home"),
+        },
+        clear=True,
+    ):
+        config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+        config.workspace_root = str(tmp_path)
+        args = argparse.Namespace(dry_run=True)
 
-    rc = cmd_connect(args, config)
+        rc = cmd_connect(args, config)
 
     assert rc == 0
     out = capsys.readouterr().out
-    assert '"target": "codex"' in out
-    assert '"command": "skills-router"' in out
-    assert '"bridge_prompt": ' in out
-    assert '"connection_check": {' in out
+    assert "Detected Global Agent Skill Folders" in out
+    assert "would_create" in out
+    assert not (codex_home / "skills" / "skills-router" / "SKILL.md").exists()
 
 
-def test_cmd_connect_dry_run_does_not_write_instruction_file(tmp_path, capsys):
-    """Connect dry-run previews instruction writes without touching disk."""
+def test_cmd_connect_writes_detected_global_skill_file(tmp_path, capsys):
+    """Connect writes managed bridge skills into detected global agent folders."""
     from skills_router.cli import cmd_connect
 
-    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
-    config.workspace_root = str(tmp_path)
-    instruction_file = "AGENTS.md"
-    args = argparse.Namespace(
-        target="codex",
-        agent_id="codex-local",
-        detail="compact",
-        from_source=False,
-        write_instructions=True,
-        instruction_file=instruction_file,
-        dry_run=True,
-        check=False,
-        json_output=True,
-    )
+    codex_home = tmp_path / "codex-home"
+    (codex_home / "skills").mkdir(parents=True)
+    with patch.dict(
+        "os.environ",
+        {
+            "CODEX_HOME": str(codex_home),
+            "HOME": str(tmp_path / "home"),
+            "USERPROFILE": str(tmp_path / "home"),
+        },
+        clear=True,
+    ):
+        config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+        config.workspace_root = str(tmp_path)
+        args = argparse.Namespace(dry_run=False)
 
-    rc = cmd_connect(args, config)
-
-    assert rc == 0
-    assert not (tmp_path / instruction_file).exists()
-    out = capsys.readouterr().out
-    assert '"status": "DRY_RUN"' in out
-    assert '"action": "would_create"' in out
-
-
-def test_cmd_connect_write_skill_creates_skill_file(tmp_path, capsys):
-    """Connect can inject the bridge as a target agent skill."""
-    from skills_router.cli import cmd_connect
-
-    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
-    config.workspace_root = str(tmp_path)
-    args = argparse.Namespace(
-        target="codex-vscode",
-        agent_id="codex-ide-local",
-        detail="compact",
-        from_source=False,
-        write_instructions=False,
-        write_skill=True,
-        instruction_file=None,
-        skill_dir=None,
-        dry_run=False,
-        check=True,
-        json_output=True,
-    )
-
-    rc = cmd_connect(args, config)
+        rc = cmd_connect(args, config)
 
     assert rc == 0
-    skill_path = tmp_path / ".codex" / "skills" / "skills-router" / "SKILL.md"
-    assert skill_path.exists()
+    skill_path = codex_home / "skills" / "skills-router" / "SKILL.md"
     text = skill_path.read_text(encoding="utf-8")
     assert "name: skills-router" in text
-    assert "OpenAI Codex IDE Extension" in text
+    assert "OpenAI Codex CLI" in text
     out = capsys.readouterr().out
-    assert '"written_skill": {' in out
-    assert '"target": "codex-ide"' in out
-    assert '"ready": true' in out
+    assert "created" in out
 
 
-def test_cmd_connect_apply_uses_recommended_bridge_for_codex(tmp_path, capsys):
-    """Connect apply should use the target's recommended bridge artifact."""
-    from skills_router.cli import cmd_connect
+def test_cmd_connect_fails_when_no_global_agent_detected(tmp_path, capsys):
+    """Connect fails clearly when no supported global agent folder exists."""
+    from skills_router.cli import EXIT_ERROR, cmd_connect
 
-    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
-    config.workspace_root = str(tmp_path)
-    args = argparse.Namespace(
-        target_name="codex",
-        target="codex",
-        agent_id="codex-local",
-        detail="compact",
-        from_source=False,
-        apply=True,
-        write_instructions=False,
-        write_skill=False,
-        instruction_file=None,
-        skill_dir=None,
-        dry_run=False,
-        check=True,
-        json_output=True,
-    )
+    with patch.dict(
+        "os.environ",
+        {
+            "HOME": str(tmp_path / "home"),
+            "USERPROFILE": str(tmp_path / "home"),
+        },
+        clear=True,
+    ):
+        config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+        config.workspace_root = str(tmp_path)
+        args = argparse.Namespace(dry_run=True)
 
-    rc = cmd_connect(args, config)
+        rc = cmd_connect(args, config)
 
-    assert rc == 0
-    assert (tmp_path / "AGENTS.md").exists()
+    assert rc == EXIT_ERROR
     out = capsys.readouterr().out
-    assert '"preferred_bridge": "instructions"' in out
-    assert '"written_instruction": {' in out
-    assert '"ready": true' in out
+    assert "No supported AI-agent global skill folders were detected" in out
 
 
-def test_cmd_connect_apply_uses_recommended_bridge_for_codex_ide(tmp_path, capsys):
-    """Connect apply should pick the skill bridge for codex-ide."""
-    from skills_router.cli import cmd_connect
+def test_cmd_connect_rejects_removed_target_flag(capsys):
+    """Connect accepts only --dry-run; target-specific flags are removed."""
+    from skills_router.cli import main
 
-    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
-    config.workspace_root = str(tmp_path)
-    args = argparse.Namespace(
-        target_name="codex-ide",
-        target="codex",
-        agent_id="codex-ide-local",
-        detail="compact",
-        from_source=False,
-        apply=True,
-        write_instructions=False,
-        write_skill=False,
-        instruction_file=None,
-        skill_dir=None,
-        dry_run=False,
-        check=True,
-        json_output=True,
-    )
+    with pytest.raises(SystemExit) as excinfo:
+        old_argv = sys.argv
+        sys.argv = ["skills-router", "connect", "--target", "codex"]
+        try:
+            main()
+        finally:
+            sys.argv = old_argv
 
-    rc = cmd_connect(args, config)
+    assert excinfo.value.code == 2
+    assert "unrecognized arguments: --target codex" in capsys.readouterr().err
 
-    assert rc == 0
-    assert (tmp_path / ".codex" / "skills" / "skills-router" / "SKILL.md").exists()
-    out = capsys.readouterr().out
-    assert '"preferred_bridge": "skill"' in out
-    assert '"written_skill": {' in out
-    assert '"ready": true' in out
+
+def test_cmd_connect_help_shows_only_dry_run_option():
+    """Connect help documents the simplified command surface."""
+    from skills_router.cli import build_parser
+
+    parser = build_parser()
+
+    help_text = parser._subparsers_action.choices["connect"].format_help()
+
+    assert "--dry-run" in help_text
+    assert "--target" not in help_text
+    assert "--write-skill" not in help_text
+    assert "--write-instructions" not in help_text
 
 
 def test_cmd_uninstall_dry_run_preserves_tool(tmp_path, capsys):

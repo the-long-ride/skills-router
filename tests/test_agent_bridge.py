@@ -8,6 +8,14 @@ from unittest.mock import MagicMock, patch
 from skills_router.config import SkillsRouterConfig
 
 
+def _isolate_agent_home(monkeypatch, tmp_path):
+    home = tmp_path / "isolated-home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    for name in ("ANTIGRAVITY_HOME", "CLAUDE_HOME", "CODEX_HOME"):
+        monkeypatch.delenv(name, raising=False)
+
+
 def test_profiles_include_requested_agent_targets():
     from skills_router.agent_bridge.profiles import list_agent_profiles
 
@@ -148,6 +156,172 @@ def test_write_bridge_skill_creates_managed_skill_file(tmp_path):
     assert text.startswith("---\nname: skills-router\n")
     assert text.count(SKILL_BEGIN_MARKER) == 1
     assert "# Changed Skill Bridge" in text
+
+
+def test_build_agent_connection_detects_global_agent_skill_dirs(tmp_path, monkeypatch):
+    from skills_router.agent_bridge.connect import build_detected_agent_connections
+
+    _isolate_agent_home(monkeypatch, tmp_path)
+    codex_home = tmp_path / "codex-home"
+    (codex_home / "skills").mkdir(parents=True)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path / "workspace")
+
+    result = build_detected_agent_connections(config)
+
+    assert result["target"] == "all"
+    assert result["detected_target_count"] == 2
+    assert result["missing_target_count"] >= 1
+    assert [target["target"] for target in result["detected_targets"]] == [
+        "codex",
+        "codex-ide",
+    ]
+    assert all(
+        item["scope"] == "global"
+        for target in result["detected_targets"]
+        for item in target["skill_dirs"]
+    )
+
+
+def test_build_agent_connection_fails_when_no_global_agents_detected(tmp_path, monkeypatch):
+    from skills_router.agent_bridge.connect import build_detected_agent_connections
+
+    _isolate_agent_home(monkeypatch, tmp_path)
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path / "workspace")
+
+    try:
+        build_detected_agent_connections(config)
+    except ValueError as exc:
+        assert "No supported AI-agent global skill folders were detected" in str(exc)
+    else:
+        raise AssertionError("Expected global connect to fail when no agent is detected")
+
+
+def test_write_detected_global_bridge_skills_is_idempotent(tmp_path, monkeypatch):
+    from skills_router.agent_bridge.connect import (
+        SKILL_BEGIN_MARKER,
+        build_detected_agent_connections,
+        write_detected_bridge_skills,
+    )
+
+    _isolate_agent_home(monkeypatch, tmp_path)
+    codex_home = tmp_path / "codex-home"
+    (codex_home / "skills").mkdir(parents=True)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path / "workspace")
+    result = build_detected_agent_connections(config)
+
+    first = write_detected_bridge_skills(result)
+    second = write_detected_bridge_skills(result)
+
+    skill_path = codex_home / "skills" / "skills-router" / "SKILL.md"
+    text = skill_path.read_text(encoding="utf-8")
+    assert first["written_count"] == 1
+    assert second["written_count"] == 1
+    assert first["writes"][0]["action"] == "created"
+    assert second["writes"][0]["action"] == "updated"
+    assert text.count(SKILL_BEGIN_MARKER) == 1
+    assert text.count("name: skills-router") == 1
+
+
+def test_rerun_detects_new_global_agent_without_duplicating_existing_bridge(
+    tmp_path,
+    monkeypatch,
+):
+    from skills_router.agent_bridge.connect import (
+        SKILL_BEGIN_MARKER,
+        build_detected_agent_connections,
+        write_detected_bridge_skills,
+    )
+
+    _isolate_agent_home(monkeypatch, tmp_path)
+    codex_home = tmp_path / "codex-home"
+    (codex_home / "skills").mkdir(parents=True)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path / "workspace")
+
+    first_connection = build_detected_agent_connections(config)
+    first = write_detected_bridge_skills(first_connection)
+    cursor_dir = tmp_path / "isolated-home" / ".cursor" / "skills"
+    cursor_dir.mkdir(parents=True)
+    second_connection = build_detected_agent_connections(config)
+    second = write_detected_bridge_skills(second_connection)
+
+    codex_skill = codex_home / "skills" / "skills-router" / "SKILL.md"
+    cursor_skill = cursor_dir / "skills-router" / "SKILL.md"
+    assert first["written_count"] == 1
+    assert second["written_count"] == 2
+    assert [target["target"] for target in second_connection["detected_targets"]] == [
+        "codex",
+        "codex-ide",
+        "cursor",
+    ]
+    assert cursor_skill.exists()
+    assert codex_skill.read_text(encoding="utf-8").count(SKILL_BEGIN_MARKER) == 1
+
+
+def test_detected_connection_uses_shared_prompt_for_targets_with_same_global_dir(
+    tmp_path,
+    monkeypatch,
+):
+    from skills_router.agent_bridge.connect import (
+        build_detected_agent_connections,
+        write_detected_bridge_skills,
+    )
+
+    _isolate_agent_home(monkeypatch, tmp_path)
+    codex_home = tmp_path / "codex-home"
+    (codex_home / "skills").mkdir(parents=True)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path / "workspace")
+
+    result = build_detected_agent_connections(config)
+    write_detected_bridge_skills(result)
+
+    text = (codex_home / "skills" / "skills-router" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    assert "OpenAI Codex CLI" in text
+    assert "OpenAI Codex IDE Extension" in text
+    assert "--target codex " in text
+    assert "--target codex-ide " in text
+
+
+def test_detected_connection_uses_agent_home_as_detection_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    from skills_router.agent_bridge.connect import build_detected_agent_connections
+
+    _isolate_agent_home(monkeypatch, tmp_path)
+    cursor_home = tmp_path / "isolated-home" / ".cursor"
+    cursor_home.mkdir(parents=True)
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path / "workspace")
+
+    result = build_detected_agent_connections(config)
+
+    assert [target["target"] for target in result["detected_targets"]] == ["cursor"]
+    assert result["detected_targets"][0]["skill_dirs"][0]["detection_reason"] == (
+        "agent_home_exists"
+    )
+
+
+def test_build_agent_connection_default_still_targets_codex(tmp_path):
+    from skills_router.agent_bridge.connect import build_agent_connection
+
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path)
+
+    result = build_agent_connection(config)
+
+    assert result["target"] == "codex"
+    assert result["display_name"] == "OpenAI Codex CLI"
 
 
 def test_check_agent_connection_reports_ready_after_bridge_write(tmp_path):

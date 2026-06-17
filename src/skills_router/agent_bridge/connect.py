@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
-from skills_router.agent_bridge.profiles import get_agent_profile
+from skills_router.agent_bridge.profiles import get_agent_profile, list_agent_profiles
 from skills_router.agent_bridge.prompts import render_agent_prompt
 from skills_router.config import SkillsRouterConfig
 
@@ -63,6 +64,60 @@ def build_agent_connection(
             f"Connection kit ready for {profile.display_name}. Add the MCP "
             "server config and the bridge prompt to the target instruction file."
         ),
+    }
+
+
+def build_detected_agent_connections(
+    config: SkillsRouterConfig,
+    *,
+    agent_id: str = "local-agent",
+    detail: str = "compact",
+    from_source: bool = False,
+) -> dict[str, Any]:
+    """Return detected global AI-agent skill folders for connect."""
+    return _build_global_agent_connection(
+        agent_id=agent_id,
+        detail=detail,
+        from_source=from_source,
+    )
+
+
+def write_detected_bridge_skills(
+    connection: dict[str, Any],
+    *,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Write one managed global Skills Router skill per detected skill folder."""
+    writes: list[dict[str, Any]] = []
+    groups: dict[str, dict[str, Any]] = {}
+    for target in connection.get("detected_targets") or []:
+        for item in target.get("skill_dirs") or []:
+            skill_path = str(item["skill_path"])
+            group = groups.setdefault(
+                skill_path,
+                {
+                    "target": "shared",
+                    "display_name": "Shared AI-agent bridge",
+                    "bridge_targets": [],
+                    "skill_path": skill_path,
+                },
+            )
+            group["bridge_targets"].append(target)
+
+    for skill_path, group in groups.items():
+        writes.append(
+            _write_bridge_skill_path(
+                Path(skill_path),
+                group,
+                dry_run=dry_run,
+            )
+        )
+
+    return {
+        "status": "DRY_RUN" if dry_run else "OK",
+        "dry_run": dry_run,
+        "written_count": len(writes),
+        "writes": writes,
     }
 
 
@@ -233,6 +288,89 @@ def write_bridge_skill(
     target = skill_dir or _default_skill_dir(connection)
     root = _resolve_workspace_path(target, config, label="Skill directories")
     path = root / "skills-router" / "SKILL.md"
+    return _write_bridge_skill_path(path, connection, dry_run=dry_run)
+
+
+def _build_global_agent_connection(
+    *,
+    agent_id: str,
+    detail: str,
+    from_source: bool,
+) -> dict[str, Any]:
+    mcp_server = _mcp_server_spec(from_source=from_source)
+    detected_targets: list[dict[str, Any]] = []
+    missing_targets: list[dict[str, Any]] = []
+
+    for profile in list_agent_profiles():
+        entries = [
+            _global_skill_dir_entry(raw, recommended=idx == 0)
+            for idx, raw in enumerate(profile.global_skill_dirs)
+        ]
+        detected = [entry for entry in entries if entry["detected"]]
+        target_report = {
+            "target": profile.target,
+            "display_name": profile.display_name,
+            "global_skill_dirs": entries,
+        }
+        if detected:
+            target_report["bridge_prompt"] = render_agent_prompt(
+                profile.target,
+                agent_id=agent_id,
+                detail=detail,
+            )
+            target_report["fallback_command"] = _fallback_command(
+                profile.target,
+                agent_id=agent_id,
+                from_source=from_source,
+            )
+            target_report["skill_dirs"] = [detected[0]]
+            detected_targets.append(target_report)
+        else:
+            missing_targets.append(target_report)
+
+    if not detected_targets:
+        candidates = sorted(
+            {
+                entry["path"]
+                for target in missing_targets
+                for entry in target["global_skill_dirs"]
+                if entry.get("path")
+            }
+        )
+        preview = ", ".join(candidates[:8])
+        suffix = f" Checked candidate folders: {preview}." if preview else ""
+        raise ValueError(
+            "No supported AI-agent global skill folders were detected."
+            f"{suffix}"
+        )
+
+    return {
+        "status": "OK",
+        "target": "all",
+        "display_name": "Detected AI-agent hosts",
+        "agent_id": agent_id,
+        "preferred_bridge": "global-skill",
+        "mode": "from_source" if from_source else "installed_cli",
+        "mcp_config": {"mcpServers": {"skills-router": mcp_server}},
+        "mcp_server": mcp_server,
+        "detected_target_count": len(detected_targets),
+        "missing_target_count": len(missing_targets),
+        "detected_targets": detected_targets,
+        "missing_targets": missing_targets,
+        "human_summary": (
+            "Detected "
+            f"{len(detected_targets)} supported AI-agent target(s). "
+            "Connect writes managed Skills Router skills to their global folders."
+        ),
+    }
+
+
+def _write_bridge_skill_path(
+    path: Path,
+    connection: dict[str, Any],
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
     content = _skill_document(connection)
     action = "created"
     if path.exists():
@@ -253,6 +391,7 @@ def write_bridge_skill(
             "dry_run": True,
             "action": preview_action,
             "path": str(path),
+            "target": connection.get("target"),
         }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
@@ -261,7 +400,9 @@ def write_bridge_skill(
         "dry_run": False,
         "action": action,
         "path": str(path),
+        "target": connection.get("target"),
     }
+
 
 
 def _mcp_server_spec(*, from_source: bool) -> dict[str, Any]:
@@ -332,6 +473,43 @@ def _skill_dir_entry(
     }
 
 
+def _global_skill_dir_entry(
+    raw: str,
+    *,
+    recommended: bool,
+) -> dict[str, Any]:
+    path = _resolve_global_path(raw)
+    agent_home = path.parent
+    skill_path = path / "skills-router" / "SKILL.md"
+    detected = path.exists() or agent_home.exists()
+    detection_reason = (
+        "global_skill_dir_exists"
+        if path.exists()
+        else "agent_home_exists"
+        if agent_home.exists()
+        else "missing"
+    )
+    managed_skill_present = False
+    if skill_path.exists():
+        text = skill_path.read_text(encoding="utf-8")
+        managed_skill_present = (
+            SKILL_BEGIN_MARKER in text and SKILL_END_MARKER in text
+        )
+    return {
+        "configured": raw,
+        "path": str(path),
+        "skill_path": str(skill_path),
+        "scope": "global",
+        "agent_home": str(agent_home),
+        "detected": detected,
+        "detection_reason": detection_reason,
+        "exists": path.exists(),
+        "skill_exists": skill_path.exists(),
+        "managed_skill_present": managed_skill_present,
+        "recommended": recommended,
+    }
+
+
 def _default_instruction_file(connection: dict[str, Any]) -> str:
     files = connection.get("instruction_files") or []
     if not files:
@@ -362,12 +540,17 @@ def _resolve_workspace_path(raw: str, config: SkillsRouterConfig, *, label: str)
     return path
 
 
+def _resolve_global_path(raw: str) -> Path:
+    expanded = os.path.expandvars(str(raw))
+    return Path(expanded).expanduser().resolve(strict=False)
+
+
 def _managed_block(prompt: str) -> str:
     return f"{BEGIN_MARKER}\n{prompt.strip()}\n{END_MARKER}"
 
 
 def _skill_document(connection: dict[str, Any]) -> str:
-    prompt = str(connection["bridge_prompt"]).strip()
+    prompt = _bridge_skill_prompt(connection)
     return (
         "---\n"
         "name: skills-router\n"
@@ -379,6 +562,30 @@ def _skill_document(connection: dict[str, Any]) -> str:
         f"{prompt}\n"
         f"{SKILL_END_MARKER}\n"
     )
+
+
+def _bridge_skill_prompt(connection: dict[str, Any]) -> str:
+    targets = connection.get("bridge_targets") or []
+    if not targets:
+        return str(connection["bridge_prompt"]).strip()
+
+    sections = [
+        "# Skills Router Shared Bridge",
+        "",
+        "This managed global skill is shared by multiple detected AI-agent hosts. "
+        "When handling a Skills Router request, use the section matching the "
+        "current host target.",
+    ]
+    for target in targets:
+        sections.extend(
+            [
+                "",
+                f"## {target['display_name']} (`{target['target']}`)",
+                "",
+                str(target["bridge_prompt"]).strip(),
+            ]
+        )
+    return "\n".join(sections).strip()
 
 
 def _replace_or_append_block(text: str, block: str) -> str:

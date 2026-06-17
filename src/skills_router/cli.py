@@ -92,8 +92,8 @@ COMMAND_EXAMPLES: dict[str, list[str]] = {
         "skills-router prompt --target claude --detail full",
     ],
     "connect": [
-        "skills-router connect codex --check",
-        "skills-router connect --target codex --write-instructions --instruction-file AGENTS.md",
+        "skills-router connect --dry-run",
+        "skills-router connect",
     ],
     "chat": [
         "skills-router chat /skills-router route find me reviewer skill",
@@ -1190,66 +1190,25 @@ def cmd_prompt(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
 def cmd_connect(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
     """Render or write AI-agent connection setup."""
     from skills_router.agent_bridge.connect import (
-        apply_agent_connection,
-        build_agent_connection,
-        check_agent_connection,
-        write_bridge_instructions,
-        write_bridge_skill,
+        build_detected_agent_connections,
+        write_detected_bridge_skills,
     )
 
     try:
-        target = getattr(args, "target_name", None) or args.target
-        result = build_agent_connection(
-            config,
-            target=target,
-            agent_id=args.agent_id,
-            detail=args.detail,
-            from_source=args.from_source,
+        result = build_detected_agent_connections(config)
+        result["global_skill_writes"] = write_detected_bridge_skills(
+            result,
+            dry_run=bool(getattr(args, "dry_run", False)),
         )
-        if getattr(args, "apply", False):
-            result.update(
-                apply_agent_connection(
-                    config,
-                    result,
-                    instruction_file=args.instruction_file,
-                    skill_dir=getattr(args, "skill_dir", None),
-                    dry_run=bool(getattr(args, "dry_run", False)),
-                )
-            )
-        if args.write_instructions:
-            result["written_instruction"] = write_bridge_instructions(
-                config,
-                result,
-                instruction_file=args.instruction_file,
-                dry_run=bool(getattr(args, "dry_run", False)),
-            )
-        if getattr(args, "write_skill", False):
-            result["written_skill"] = write_bridge_skill(
-                config,
-                result,
-                skill_dir=getattr(args, "skill_dir", None),
-                dry_run=bool(getattr(args, "dry_run", False)),
-            )
-        if getattr(args, "check", False):
-            refreshed = build_agent_connection(
-                config,
-                target=target,
-                agent_id=args.agent_id,
-                detail=args.detail,
-                from_source=args.from_source,
-            )
-            result["instruction_files"] = refreshed["instruction_files"]
-            result["skill_dirs"] = refreshed["skill_dirs"]
-            result["connection_check"] = check_agent_connection(config, refreshed)
         result["dry_run"] = bool(getattr(args, "dry_run", False))
     except ValueError as exc:
-        if args.json_output:
+        if getattr(args, "json_output", False):
             _print_json({"status": "ERROR", "error": str(exc)})
         else:
             console.print(f"[red]Error: {exc}[/red]")
         return EXIT_ERROR
 
-    if args.json_output:
+    if getattr(args, "json_output", False):
         _print_json(result)
         return EXIT_SUCCESS
 
@@ -1260,75 +1219,24 @@ def cmd_connect(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
             border_style="cyan",
         )
     )
-    console.print(Panel.fit(
-        json.dumps(result["mcp_config"], indent=2),
-        title="[bold cyan]MCP Config[/bold cyan]",
-        border_style="cyan",
-    ))
     table = Table(
-        title="Instruction Files",
+        title="Detected Global Agent Skill Folders",
         show_header=True,
         header_style="bold cyan",
     )
-    table.add_column("Use")
-    table.add_column("Exists")
+    table.add_column("Target")
+    table.add_column("Action")
     table.add_column("Path")
-    for item in result["instruction_files"]:
-        table.add_row(
-            "yes" if item["recommended"] else "",
-            "yes" if item["exists"] else "no",
-            str(item["path"]),
-        )
-    console.print(table)
-    if result.get("skill_dirs"):
-        skill_table = Table(
-            title="Skill Directories",
-            show_header=True,
-            header_style="bold cyan",
-        )
-        skill_table.add_column("Use")
-        skill_table.add_column("Exists")
-        skill_table.add_column("Path")
-        for item in result["skill_dirs"]:
-            skill_table.add_row(
-                "yes" if item["recommended"] else "",
-                "yes" if item["exists"] else "no",
-                str(item["path"]),
+    writes = result["global_skill_writes"]["writes"]
+    actions_by_path = {item["path"]: item["action"] for item in writes}
+    for target in result["detected_targets"]:
+        for item in target["skill_dirs"]:
+            table.add_row(
+                target["target"],
+                actions_by_path.get(item["skill_path"], "deduped"),
+                str(item["skill_path"]),
             )
-        console.print(skill_table)
-    if result.get("written_instruction"):
-        written = result["written_instruction"]
-        console.print(
-            f"[green]{written['action'].title()} bridge prompt:[/green] "
-            f"{written['path']}"
-        )
-    if result.get("written_skill"):
-        written = result["written_skill"]
-        console.print(
-            f"[green]{written['action'].title()} bridge skill:[/green] "
-            f"{written['path']}"
-        )
-    if result.get("connection_check"):
-        check = result["connection_check"]
-        console.print(Panel(
-            check["recommendation"],
-            title=(
-                "[bold green]Connection Ready[/bold green]"
-                if check["ready"]
-                else "[bold yellow]Connection Check[/bold yellow]"
-            ),
-            border_style="green" if check["ready"] else "yellow",
-        ))
-        if check.get("warnings"):
-            for warning in check["warnings"]:
-                console.print(f"[yellow]- {warning}[/yellow]")
-    if not result.get("written_instruction") and not result.get("written_skill"):
-        console.print(Panel(
-            result["bridge_prompt"],
-            title="[bold cyan]Bridge Prompt[/bold cyan]",
-            border_style="cyan",
-        ))
-    console.print(f"[dim]CLI fallback: {result['fallback_command']}[/dim]")
+    console.print(table)
     return EXIT_SUCCESS
 
 
@@ -1659,68 +1567,13 @@ def build_parser() -> argparse.ArgumentParser:
     # -- connect ---------------------------------------------------------------
     p_connect = add_command_parser(
         "connect",
-        "Render MCP config and optional bridge instructions for an AI-agent host",
-    )
-    p_connect.add_argument(
-        "target_name",
-        nargs="?",
-        help="Agent target or alias",
-    )
-    p_connect.add_argument(
-        "--target",
-        default="codex",
-        help="Agent target or alias",
-    )
-    p_connect.add_argument(
-        "--agent-id",
-        default="local-agent",
-        help="Agent/user id for workspace scope examples",
-    )
-    p_connect.add_argument(
-        "--detail",
-        choices=["compact", "full"],
-        default="compact",
-        help="Bridge prompt detail level",
-    )
-    p_connect.add_argument(
-        "--from-source",
-        action="store_true",
-        help="Generate MCP config that runs this checkout through Python/PYTHONPATH",
-    )
-    p_connect.add_argument(
-        "--apply",
-        action="store_true",
-        help="Apply the recommended bridge file for the target host",
-    )
-    p_connect.add_argument(
-        "--write-instructions",
-        action="store_true",
-        help="Write or update a managed bridge prompt block in an instruction file",
-    )
-    p_connect.add_argument(
-        "--write-skill",
-        action="store_true",
-        help="Write or update a managed Skills Router SKILL.md in the target skill folder",
-    )
-    p_connect.add_argument(
-        "--check",
-        action="store_true",
-        help="Verify the local MCP tool surface and whether bridge files are present",
+        "Connect detected AI-agent hosts through global Skills Router skills",
     )
     p_connect.add_argument(
         "--dry-run",
         action="store_true",
-        help="Preview --write-instructions or --write-skill without writing files",
+        help="Preview detected global agent skill writes without changing files",
     )
-    p_connect.add_argument(
-        "--instruction-file",
-        help="Workspace-relative instruction file to write when --write-instructions is set",
-    )
-    p_connect.add_argument(
-        "--skill-dir",
-        help="Workspace-relative skill root to write when --write-skill is set",
-    )
-    _add_json_arg(p_connect)
 
     # -- chat ------------------------------------------------------------------
     p_chat = add_command_parser(
