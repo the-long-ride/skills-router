@@ -110,21 +110,17 @@ skills-router --help
 For local linked development, the wrapper uses this repository's `src/`
 directory as `PYTHONPATH`.
 
-Generate an agent-host setup kit:
+Connect detected AI-agent hosts:
 
 ```powershell
-skills-router connect --target codex --json
-skills-router connect --target codex --write-instructions
-skills-router connect --target codex --from-source --json
-skills-router connect --target codex-ide --from-source --json
-skills-router connect --target codex-ide --write-skill
+skills-router connect --dry-run
+skills-router connect
 ```
 
-`connect` returns the MCP config, bridge prompt, target instruction files, target
-skill folders, and CLI fallback command. `--write-instructions` writes a managed
-bridge prompt block to the first target instruction file in the current
-workspace. `--write-skill` writes a managed `SKILL.md` to the first target
-workspace skill folder, such as `.codex/skills/skills-router/SKILL.md`.
+`connect --dry-run` scans supported global AI-agent skill folders and agent home
+folders, then previews the managed bridge files it would write. `connect` writes
+or updates one managed `skills-router/SKILL.md` file per detected global skill
+folder.
 
 ## CLI Commands
 
@@ -133,28 +129,20 @@ workspace skill folder, such as `.codex/skills/skills-router/SKILL.md`.
 Use connect when a human wants to attach Skills Router to an AI-agent host:
 
 ```powershell
-skills-router connect codex --apply --check --json
-skills-router connect codex-ide --apply --check --json
-skills-router connect cursor --apply
-skills-router connect cursor --apply --dry-run
-skills-router connect codex --from-source --json
+skills-router connect --dry-run
+skills-router connect
 ```
 
 Expected behavior:
 
-- Return a host-ready MCP config for `skills-router mcp`.
-- Return the compact bridge prompt, target instruction file paths, and target
-  skill folder paths.
-- In `--from-source` mode, use Python plus `PYTHONPATH` to run this checkout.
-- `--apply` writes the recommended bridge artifact for the target host.
-- Only write instruction files when `--write-instructions` is present.
-- Only write agent skill files when `--write-skill` is present.
-- `--check` verifies the local MCP tool surface and whether a managed bridge
-  file is already present for the target.
-- `--write-skill` creates or updates only the managed
-  `skills-router/SKILL.md` file and refuses to overwrite unmanaged skill files.
-- `--dry-run` previews instruction-file and skill-file actions without writing
-  files.
+- Detect supported AI-agent hosts by existing global skill folders or agent
+  home folders.
+- Fail with a clear reason when no supported global agent folder is detected.
+- `connect --dry-run` previews the write actions without changing files.
+- `connect` writes or updates only managed global `skills-router/SKILL.md`
+  files and refuses to overwrite unmanaged skill files.
+- Later `connect` runs detect newly installed agents and update existing bridge
+  files without duplicating managed blocks.
 
 ### Analyze
 
@@ -320,10 +308,12 @@ Start the stdio JSON-RPC server:
 skills-router mcp
 ```
 
-For most hosts, generate the config instead of hand-writing it:
+For most hosts, connect through global skill detection instead of hand-writing
+bridge files:
 
 ```powershell
-skills-router connect --target cursor --json
+skills-router connect --dry-run
+skills-router connect
 ```
 
 Tool surface:

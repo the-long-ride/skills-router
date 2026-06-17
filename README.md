@@ -238,10 +238,9 @@ skills-router chat "/skills-router refine writer-pack engram" --target codex --a
 # Expose Skills Router through stdio JSON-RPC
 skills-router mcp
 
-# Generate one-command AI-agent setup kit
-skills-router connect --target codex --json
-skills-router connect --target codex --write-instructions
-skills-router connect --target codex --write-instructions --dry-run
+# Connect detected AI-agent hosts through global Skills Router skills
+skills-router connect --dry-run
+skills-router connect
 
 # Render only bridge instructions for a host
 skills-router prompt --target codex
@@ -263,7 +262,7 @@ skills-router prompt --list
 | `inspect <tool_id>` | Print one Brain Index entry. |
 | `audit` | Query audit events. |
 | `watch` | Run Registry Watch once or as a daemon. |
-| `connect` | Render MCP config plus bridge instructions, and optionally write them. |
+| `connect` | Write managed global Skills Router skills for detected AI-agent hosts. |
 | `prompt` | Render host-specific bridge instructions. |
 | `chat` | Parse and execute chat-shaped `/skills-router` requests. |
 | `mcp` | Run the local stdio JSON-RPC tool server. |
@@ -278,7 +277,7 @@ skills-router uninstall writer-pack --dry-run --json
 skills-router index --dry-run --json
 skills-router refine --dry-run --json
 skills-router watch --once --dry-run --json
-skills-router connect --target codex --write-instructions --dry-run --json
+skills-router connect --dry-run
 ```
 
 Dry-run responses include `dry_run: true`. For MCP, pass `dry_run: true` to
@@ -441,24 +440,19 @@ lists are enforced for the calling host.
 | `hermes-agent` | `SOUL.md`, `AGENTS.md` |
 | `windsurf` | `.windsurf/rules/skills-router.md`, `AGENTS.md` |
 
-Generate a setup kit for an agent host with:
+Connect detected AI-agent hosts with:
 
 ```bash
-skills-router connect codex --apply --check --json
-skills-router connect codex --from-source --json
-skills-router connect codex-ide --apply --check --json
-skills-router connect cursor --apply
+skills-router connect --dry-run
+skills-router connect
 ```
 
-`connect` returns the MCP server config, target instruction file paths, bridge
-prompt, skill folder paths, and CLI fallback command. `--write-instructions`
-writes a managed bridge prompt block to the target's first workspace instruction
-file. `--write-skill` writes a compact managed `SKILL.md` to the target's first
-workspace skill folder, such as `.codex/skills/skills-router/SKILL.md`.
-`--check` verifies that the local MCP server exposes the expected tool surface
-and whether a managed bridge file is already present for that target.
-`--apply` writes the recommended bridge artifact for the target, so most setups
-do not need host-specific write flags.
+`connect --dry-run` scans supported AI-agent global skill folders and agent home
+folders, then previews the managed `skills-router/SKILL.md` files it would
+write. `connect` writes one managed global skill per detected folder and updates
+the same managed block on later runs, so new agents can be detected without
+duplicating existing bridge files. If no supported global agent folder is found,
+the command fails with the candidate folders it checked.
 
 Render only target-specific bridge text with:
 

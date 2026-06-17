@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Simplified `connect` to only support `skills-router connect --dry-run` and
+  `skills-router connect`.
+- Updated `connect` to detect supported AI-agent global skill folders or agent
+  home folders, then write managed global `skills-router/SKILL.md` bridge files
+  without duplicating managed blocks on later runs.
+- Changed `connect` to fail with a clear reason when no supported AI-agent
+  global agent folder is detected.
+
 ## [0.0.5] - 2026-06-16
 
 ### Added
