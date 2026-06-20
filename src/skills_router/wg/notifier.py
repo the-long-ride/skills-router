@@ -57,9 +57,9 @@ class WGNotifier:
 
         # MVP: print to console
         if target == self.admin_channel_id:
-            subtitle = f"[dim]→ Admin channel ({self.admin_channel_id})[/dim]"
+            subtitle = f"[dim]-> Admin channel ({self.admin_channel_id})[/dim]"
         else:
-            subtitle = f"[dim]→ Agent: {target}[/dim]"
+            subtitle = f"[dim]-> Agent: {target}[/dim]"
 
         self.console.print(
             Panel(

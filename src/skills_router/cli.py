@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from enum import Enum
 from typing import Any
@@ -23,6 +24,44 @@ from skills_router.metrics import REGISTRY as METRICS
 from skills_router.orchestrator import SkillsRouterOrchestrator
 from skills_router.storage.base import AbstractBrainIndexStore
 from skills_router.storage.memory_store import MemoryBrainIndexStore
+
+os.environ.setdefault("PYTHONUTF8", "1")
+
+def _configure_stdout_encoding() -> None:
+    """Reconfigure stdout/stderr to avoid UnicodeEncodeError on Windows.
+
+    Windows defaults to a charmap codec (cp1252) that cannot encode many
+    Unicode characters such as U+2192 (RIGHTWARDS ARROW).  Rich Console
+    relies on the underlying stream encoding, so we must fix it before
+    Console is created.
+
+    Strategy (in order):
+      1. reconfigure(encoding="utf-8") -- best outcome
+      2. reconfigure(errors="replace")  -- keep cp1252 but never crash
+      3. Give up silently (piped / detached streams) but set PYTHONUTF8=1
+         so any child processes at least benefit.
+    """
+
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None:
+            continue
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        # Attempt 1: full UTF-8 reconfiguration (ideal)
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+            continue
+        except (ValueError, OSError):
+            pass
+        # Attempt 2: keep the current encoding but switch to a safe error
+        # handler so unencodable characters are replaced with '?' instead of
+        # crashing.
+        try:
+            reconfigure(errors="replace")
+        except (ValueError, OSError):
+            pass
 
 console = Console()
 COMMAND_NAMES = {
@@ -340,7 +379,7 @@ def _jsonable(value: Any) -> Any:
 
 
 def _print_json(data: Any) -> None:
-    console.print_json(data=_jsonable(data))
+    console.print_json(data=_jsonable(data), ensure_ascii=True)
 
 
 def _result_exit_code(result: dict) -> int:
@@ -1648,6 +1687,7 @@ def _add_json_arg(parser: argparse.ArgumentParser) -> None:
 
 def main() -> None:
     """CLI entry point."""
+    _configure_stdout_encoding()
     clean_argv = _normalize_slash_args(sys.argv[1:])
 
     parser = build_parser()

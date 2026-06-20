@@ -35,7 +35,7 @@ class SkillsRouterOrchestrator:
     4. Semantic evaluation
     5. Capability analysis (if overlap)
     6. BehaviorSpec check
-    7. Workspace/Global prompt → user decision
+    7. Workspace/Global prompt -> user decision
     8. Install / cleanup / audit
     """
 
@@ -68,7 +68,7 @@ class SkillsRouterOrchestrator:
         )
         self.audit_logger = AuditLogger(log_path=config.audit_log_path)
 
-        # Callback for Workspace/Global decisions: receives (prompt_text, options) → chosen index
+        # Callback for Workspace/Global decisions: receives (prompt_text, options) -> chosen index
         # If None, fail closed to the safe option (usually cancel).
         self._decision_callback = decision_callback
 
@@ -516,7 +516,7 @@ class SkillsRouterOrchestrator:
                 "new_only_behaviors": cap_result.get("new_only_behaviors", []),
             }
         elif case == "CASE_LLM_DISTINCT":
-            # LLM tools are distinct → treat as brand new
+            # LLM tools are distinct -> treat as brand new
             wg_case = "CASE_1"
             wg_ctx = self._build_case1_ctx(new_tool, trust_result)
         elif case == "CASE_LLM_UNKNOWN":
