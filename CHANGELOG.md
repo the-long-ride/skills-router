@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.7] - 2026-06-20
+
+### Added
+- Skill inventory system: `build_skill_inventory()` reads routing + brain
+  index to generate a structured list of installed skills with use_when
+  triggers and prompt snippets.
+- `use_skill()` function loads full skill content for AI agent context injection.
+- `/skills-router use <tool_id>` slash command with aliases `load` and `inject`.
+- `use_skill` MCP tool and `skills-router use <tool_id>` CLI subcommand.
+- `connect` now appends installed-skill inventory to bridge SKILL.md files
+  so AI agents see available skills in context.
+
+### Fixed
+- UnicodeEncodeError on Windows cp1252: `_configure_stdout_encoding()` in
+  `main()`, `ensure_ascii=True` in `_print_json()`, `→` -> `->` in Rich markup.
+
 ## [0.0.6] - 2026-06-17
 
 ### Changed
