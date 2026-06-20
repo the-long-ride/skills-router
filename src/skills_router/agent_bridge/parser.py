@@ -38,7 +38,9 @@ COMMAND_ALIASES = {
     "check": "watch",
     "route": "route",
     "route-task": "route",
-    "use": "route",
+    "use": "use",
+    "load": "use",
+    "inject": "use",
 }
 
 FILLER_TOKENS = {
@@ -233,6 +235,11 @@ def _extract_command_args(command: str, tokens: list[str]) -> dict[str, Any]:
         if not task:
             raise ValueError("Route requires task text")
         return {"task": task}
+    if command == "use":
+        tool_id = _first_positional(tokens)
+        if not tool_id:
+            raise ValueError("Use requires a skill tool_id")
+        return {"tool_id": tool_id}
     return {}
 
 

@@ -86,6 +86,7 @@ def write_detected_bridge_skills(
     connection: dict[str, Any],
     *,
     dry_run: bool = False,
+    config: SkillsRouterConfig | None = None,
 ) -> dict[str, Any]:
     """Write one managed global Skills Router skill per detected skill folder."""
     writes: list[dict[str, Any]] = []
@@ -110,6 +111,7 @@ def write_detected_bridge_skills(
                 Path(skill_path),
                 group,
                 dry_run=dry_run,
+                config=config,
             )
         )
 
@@ -370,8 +372,19 @@ def _write_bridge_skill_path(
     connection: dict[str, Any],
     *,
     dry_run: bool,
+    config: SkillsRouterConfig | None = None,
 ) -> dict[str, Any]:
     content = _skill_document(connection)
+    if config is not None:
+        try:
+            from skills_router.agent_bridge.inventory import (
+                build_skill_inventory,
+                render_inventory_markdown,
+            )
+            inventory = build_skill_inventory(config)
+            content += "\n\n" + render_inventory_markdown(inventory)
+        except Exception:
+            pass
     action = "created"
     if path.exists():
         current = path.read_text(encoding="utf-8")

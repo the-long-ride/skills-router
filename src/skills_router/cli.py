@@ -69,6 +69,7 @@ COMMAND_NAMES = {
     "help",
     "install",
     "uninstall",
+    "use",
     "index",
     "refine",
     "list",
@@ -94,6 +95,10 @@ COMMAND_EXAMPLES: dict[str, list[str]] = {
     "index": [
         "skills-router index --scope global",
         "skills-router index --dry-run --json",
+    ],
+    "use": [
+        "skills-router use weather-tool",
+        "skills-router use writer-pack --json",
     ],
     "refine": [
         "skills-router refine",
@@ -877,6 +882,31 @@ def cmd_uninstall(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
     return _result_exit_code(result)
 
 
+def cmd_use(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
+    """Handle the use subcommand -- load a skill for agent injection."""
+    from skills_router.agent_bridge.inventory import use_skill
+
+    store = _build_store(config)
+    result = use_skill(config, args.tool_id, store=store)
+
+    if getattr(args, "json_output", False):
+        _print_json(result)
+        return _result_exit_code(result)
+
+    if result["status"] == "NOT_FOUND":
+        console.print(f"[red]Error: {result['error']}[/red]")
+        return EXIT_ERROR
+
+    console.print(
+        Panel(
+            result["content"],
+            title=f"[bold cyan]Skills Router: {result['metadata']['name']}[/bold cyan]",
+            border_style="cyan",
+        )
+    )
+    return EXIT_SUCCESS
+
+
 def cmd_list(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
     """Handle the list subcommand."""
     store = _build_store(config)
@@ -1238,6 +1268,7 @@ def cmd_connect(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
         result["global_skill_writes"] = write_detected_bridge_skills(
             result,
             dry_run=bool(getattr(args, "dry_run", False)),
+            config=config,
         )
         result["dry_run"] = bool(getattr(args, "dry_run", False))
     except ValueError as exc:
@@ -1516,6 +1547,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_uninstall.add_argument("--user", help="User ID (default: cli-user)")
     _add_json_arg(p_uninstall)
 
+    # -- use --------------------------------------------------------------------
+    p_use = add_command_parser("use", "Load an installed skill for agent injection")
+    p_use.add_argument("tool_id", help="Tool ID of the installed skill to load")
+    _add_json_arg(p_use)
+
     # -- list ------------------------------------------------------------------
     p_list = add_command_parser("list", "List installed tools")
     p_list.add_argument("--scope", help="Filter by scope")
@@ -1708,6 +1744,7 @@ def main() -> None:
         "analyze": cmd_analyze,
         "install": cmd_install,
         "uninstall": cmd_uninstall,
+        "use": cmd_use,
         "index": cmd_index,
         "refine": cmd_refine,
         "list": cmd_list,

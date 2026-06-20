@@ -10,12 +10,19 @@ from skills_router.agent_bridge.profiles import (
     list_agent_profiles,
 )
 
+from skills_router.agent_bridge.inventory import (
+    build_skill_inventory,
+    render_inventory_markdown,
+)
+from skills_router.config import SkillsRouterConfig
+
 
 def render_agent_prompt(
     target: str | None = None,
     *,
     agent_id: str = "<agent-id>",
     detail: str = "compact",
+    config: SkillsRouterConfig | None = None,
 ) -> str:
     """Render bridge instructions for one AI-agent target.
 
@@ -27,7 +34,14 @@ def render_agent_prompt(
         return _render_full_agent_prompt(profile, agent_id=agent_id)
     if detail != "compact":
         raise ValueError("Prompt detail must be 'compact' or 'full'")
-    return _render_compact_agent_prompt(profile, agent_id=agent_id)
+    prompt = _render_compact_agent_prompt(profile, agent_id=agent_id)
+    if config is not None:
+        try:
+            inventory = build_skill_inventory(config)
+            prompt += "\n\n" + render_inventory_markdown(inventory)
+        except Exception:
+            pass
+    return prompt
 
 
 def _render_compact_agent_prompt(profile: AgentProfile, *, agent_id: str) -> str:

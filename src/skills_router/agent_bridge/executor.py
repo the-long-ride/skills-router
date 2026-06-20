@@ -97,6 +97,19 @@ def execute_intent(intent: SlashCommandIntent, config: SkillsRouterConfig) -> di
         orchestrator = SkillsRouterOrchestrator(config=config, store=store)
         tools = orchestrator.list_tools(scope=intent.scope)
         return {"status": "OK", "tools": tools, "count": len(tools)}
+    if intent.command == "use":
+        from skills_router.agent_bridge.inventory import use_skill
+
+        result = use_skill(config, intent.arguments["tool_id"], store=store)
+        if result["status"] == "NOT_FOUND":
+            return result
+        return {
+            "status": "OK",
+            "tool_id": result["tool_id"],
+            "content": result["content"],
+            "metadata": result["metadata"],
+            "human_summary": result["human_summary"],
+        }
     if intent.command == "status":
         from skills_router.status import build_router_status
 
@@ -209,6 +222,9 @@ def summarize_result(result: dict[str, Any]) -> str:
     if status == "OK" and "tool" in result:
         tool = result.get("tool") or {}
         return f"Inspected {tool.get('tool_id', tool_id or 'tool')}."
+    if status == "OK" and "content" in result:
+        name = (result.get("metadata") or {}).get("name", result.get("tool_id", "skill"))
+        return f"Loaded skill '{name}' into context. Follow the skill instructions above."
     if status in {"OK", "REVIEW_NEEDED", "NO_ROUTE"} and "routes" in result:
         routes = result.get("routes", [])
         if status == "OK" and routes:

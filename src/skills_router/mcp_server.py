@@ -272,6 +272,13 @@ def _call_tool(params: dict[str, Any], config: SkillsRouterConfig) -> dict[str, 
         }
         return _tool_result(result)
 
+    if name == "use_skill":
+        from skills_router.agent_bridge.inventory import use_skill
+
+        store = _build_store(config)
+        result = use_skill(config, arguments["tool_id"], store=store)
+        return _tool_result(result)
+
     if name == "watch_once":
         store = _build_store(config)
         daemon = RegistryWatchDaemon(
@@ -567,6 +574,19 @@ def _tool_specs() -> list[dict[str, Any]]:
         {
             "name": "inspect_tool",
             "description": "Inspect one installed tool.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"tool_id": {"type": "string"}},
+                "required": ["tool_id"],
+            },
+        },
+        {
+            "name": "use_skill",
+            "description": (
+                "Load a skill's full content for injection into the AI "
+                "agent's context. Returns routing rules, capabilities, "
+                "use_when triggers, and cached SKILL.md content."
+            ),
             "inputSchema": {
                 "type": "object",
                 "properties": {"tool_id": {"type": "string"}},
