@@ -9,7 +9,21 @@ from pathlib import Path
 
 
 def _default_data_dir() -> str:
-    """Resolve the default data directory."""
+    """Resolve the default data directory.
+
+    Priority:
+    1. SKILLS_ROUTER_HOME environment variable
+    2. ~/.skills-router-home file (single-line path)
+    3. Default ~/.skills-router/
+    """
+    env_home = os.environ.get("SKILLS_ROUTER_HOME", "").strip()
+    if env_home:
+        return env_home
+    home_file = Path.home() / ".skills-router-home"
+    if home_file.is_file():
+        home_content = home_file.read_text(encoding="utf-8").strip()
+        if home_content:
+            return home_content
     return str(Path.home() / ".skills-router")
 
 

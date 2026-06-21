@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 from enum import Enum
 from typing import Any
 
@@ -82,6 +83,8 @@ COMMAND_NAMES = {
     "connect",
     "chat",
     "route",
+    "choose-home",
+    "move-home",
 }
 COMMAND_EXAMPLES: dict[str, list[str]] = {
     "analyze": [
@@ -146,6 +149,14 @@ COMMAND_EXAMPLES: dict[str, list[str]] = {
     "route": [
         "skills-router route fix flaky ci test",
         "skills-router route add login form --target codex --include-inactive",
+    ],
+    "choose-home": [
+        "skills-router choose-home /custom/home",
+        "skills-router choose-home --json",
+    ],
+    "move-home": [
+        "skills-router move-home /new/home",
+        "skills-router move-home /new/home --dry-run",
     ],
     "help": [
         "skills-router help",
@@ -1363,6 +1374,110 @@ def cmd_route(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
     return _result_exit_code(result)
 
 
+
+def cmd_choose_home(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
+    """Handle the choose-home subcommand."""
+    home_file = Path.home() / ".skills-router-home"
+
+    if args.path:
+        target = os.path.abspath(args.path)
+        os.makedirs(target, exist_ok=True)
+        home_file.write_text(target, encoding="utf-8")
+
+        if args.json_output:
+            _print_json({"status": "OK", "home": target})
+        else:
+            console.print(f"Home set to: {target}")
+        return EXIT_SUCCESS
+
+    # No path: print current home
+    current = config.data_dir
+    if args.json_output:
+        _print_json({"status": "OK", "home": current})
+    else:
+        console.print(current)
+    return EXIT_SUCCESS
+
+
+def cmd_move_home(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
+    """Handle the move-home subcommand."""
+    import shutil
+
+    old_home = config.data_dir
+    new_home = os.path.abspath(args.new_path)
+
+    # Normalize for comparison
+    old_norm = os.path.normpath(old_home).rstrip(os.sep).lower()
+    new_norm = os.path.normpath(new_home).rstrip(os.sep).lower()
+
+    if old_norm == new_norm:
+        msg = f"New home is the same as the current home: {old_home}"
+        if args.json_output:
+            _print_json({"status": "NOOP", "message": msg, "home": old_home})
+        else:
+            console.print(f"[yellow]{msg}[/yellow]")
+        return EXIT_SUCCESS
+
+    dry_run = bool(getattr(args, "dry_run", False))
+
+    # Count items that would be moved
+    items_to_move = []
+    if os.path.isdir(old_home):
+        for root_dir, dirs, files in os.walk(old_home):
+            for name in files + dirs:
+                src = os.path.join(root_dir, name)
+                rel = os.path.relpath(src, old_home)
+                items_to_move.append(rel)
+
+    if dry_run:
+        if args.json_output:
+            _print_json({
+                "status": "DRY_RUN",
+                "old_home": old_home,
+                "new_home": new_home,
+                "moved_count": len(items_to_move),
+                "items": items_to_move[:50],
+            })
+        else:
+            console.print(
+                f"[cyan]Dry run:[/cyan] Would move [bold]{len(items_to_move)}[/bold] "
+                f"items from {old_home} to {new_home}"
+            )
+        return EXIT_SUCCESS
+
+    # Actually move
+    if os.path.isdir(old_home):
+        os.makedirs(new_home, exist_ok=True)
+        for item in items_to_move:
+            src = os.path.join(old_home, item)
+            dst = os.path.join(new_home, item)
+            # Skip if already moved (directories handled by copytree)
+            if os.path.isdir(src) and not os.path.exists(dst):
+                shutil.copytree(src, dst)
+            elif os.path.isfile(src) and not os.path.exists(dst):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(src, dst)
+
+    # Update home file
+    home_file = Path.home() / ".skills-router-home"
+    home_file.write_text(new_home, encoding="utf-8")
+
+    if args.json_output:
+        _print_json({
+            "status": "OK",
+            "old_home": old_home,
+            "new_home": new_home,
+            "moved_count": len(items_to_move),
+        })
+    else:
+        console.print(
+            f"Home moved from [yellow]{old_home}[/yellow] to "
+            f"[green]{new_home}[/green] "
+            f"([bold]{len(items_to_move)}[/bold] items)"
+        )
+    return EXIT_SUCCESS
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     parser = SkillsRouterArgumentParser(
@@ -1698,6 +1813,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_json_arg(p_route)
 
+    # -- choose-home -----------------------------------------------------------
+    p_choose_home = add_command_parser(
+        "choose-home",
+        "Set or show the home directory for installed skills",
+    )
+    p_choose_home.add_argument(
+        "path",
+        nargs="?",
+        help="Path to use as the new skills home directory",
+    )
+    _add_json_arg(p_choose_home)
+
+    # -- move-home --------------------------------------------------------------
+    p_move_home = add_command_parser(
+        "move-home",
+        "Move installed skills and router state to a new home directory",
+    )
+    p_move_home.add_argument(
+        "new_path",
+        help="New home directory path",
+    )
+    p_move_home.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview the move without changing files",
+    )
+    _add_json_arg(p_move_home)
+
     # -- help ------------------------------------------------------------------
     p_help = add_command_parser(
         "help",
@@ -1757,6 +1900,8 @@ def main() -> None:
         "connect": cmd_connect,
         "chat": cmd_chat,
         "route": cmd_route,
+        "choose-home": cmd_choose_home,
+        "move-home": cmd_move_home,
     }
 
     if args.command == "help":
