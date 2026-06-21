@@ -287,7 +287,10 @@ _PROFILES: dict[str, AgentProfile] = {
             "package-manager tools.",
         ),
         workspace_skill_dirs=(".opencode/skills", ".agents/skills"),
-        global_skill_dirs=("~/.opencode/skills",),
+        global_skill_dirs=(
+            "~/.opencode/skills",
+            "~/.config/opencode/skills",
+        ),
     ),
     "hermes-agent": AgentProfile(
         target="hermes-agent",
