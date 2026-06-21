@@ -1321,6 +1321,7 @@ def cmd_connect(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
     return EXIT_SUCCESS
 
 
+
 def cmd_chat(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
     """Execute or parse a chat-shaped /skills-router request."""
     text = " ".join(args.text)

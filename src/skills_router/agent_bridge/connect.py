@@ -16,6 +16,8 @@ BEGIN_MARKER = "<!-- BEGIN SKILLS ROUTER BRIDGE -->"
 END_MARKER = "<!-- END SKILLS ROUTER BRIDGE -->"
 SKILL_BEGIN_MARKER = "<!-- BEGIN SKILLS ROUTER BRIDGE SKILL -->"
 SKILL_END_MARKER = "<!-- END SKILLS ROUTER BRIDGE SKILL -->"
+TOML_BEGIN_MARKER = "# BEGIN SKILLS ROUTER BRIDGE"
+TOML_END_MARKER = "# END SKILLS ROUTER BRIDGE"
 
 
 def build_agent_connection(
@@ -47,6 +49,10 @@ def build_agent_connection(
         agent_id=agent_id,
         from_source=from_source,
     )
+    slash_command_files = [
+        _slash_command_entry(raw, config, recommended=idx == 0)
+        for idx, raw in enumerate(profile.slash_command_files)
+    ]
     return {
         "status": "OK",
         "target": profile.target,
@@ -59,6 +65,7 @@ def build_agent_connection(
         "bridge_prompt": bridge_prompt,
         "instruction_files": instruction_files,
         "skill_dirs": skill_dirs,
+        "slash_command_files": slash_command_files,
         "fallback_command": fallback_command,
         "human_summary": (
             f"Connection kit ready for {profile.display_name}. Add the MCP "
@@ -141,14 +148,19 @@ def apply_agent_connection(
             skill_dir=skill_dir,
             dry_run=dry_run,
         )
-        return result
-
-    result["written_instruction"] = write_bridge_instructions(
-        config,
-        connection,
-        instruction_file=instruction_file,
-        dry_run=dry_run,
-    )
+    else:
+        result["written_instruction"] = write_bridge_instructions(
+            config,
+            connection,
+            instruction_file=instruction_file,
+            dry_run=dry_run,
+        )
+    slash_writes = [
+        write_slash_command(config, connection, raw=item["configured"], dry_run=dry_run)
+        for item in (connection.get("slash_command_files") or [])
+    ]
+    if slash_writes:
+        result["written_slash_commands"] = slash_writes
     return result
 
 
@@ -183,10 +195,14 @@ def check_agent_connection(
 
     instruction_files = connection.get("instruction_files") or []
     skill_dirs = connection.get("skill_dirs") or []
+    slash_command_files = connection.get("slash_command_files") or []
     managed_instruction_count = sum(
         1 for item in instruction_files if item.get("managed_bridge_present")
     )
     managed_skill_count = sum(1 for item in skill_dirs if item.get("skill_exists"))
+    managed_slash_count = sum(
+        1 for item in slash_command_files if item.get("managed_present")
+    )
     writable_bridge_targets = [
         item["path"]
         for item in instruction_files
@@ -194,6 +210,10 @@ def check_agent_connection(
     ] + [
         item["skill_path"]
         for item in skill_dirs
+        if item.get("recommended")
+    ] + [
+        item["path"]
+        for item in slash_command_files
         if item.get("recommended")
     ]
 
@@ -226,8 +246,10 @@ def check_agent_connection(
         "bridge_files": {
             "managed_instruction_count": managed_instruction_count,
             "managed_skill_count": managed_skill_count,
+            "managed_slash_count": managed_slash_count,
             "instruction_files": instruction_files,
             "skill_dirs": skill_dirs,
+            "slash_command_files": slash_command_files,
         },
         "writable_bridge_targets": writable_bridge_targets,
         "recommendation": (
@@ -291,6 +313,90 @@ def write_bridge_skill(
     root = _resolve_workspace_path(target, config, label="Skill directories")
     path = root / "skills-router" / "SKILL.md"
     return _write_bridge_skill_path(path, connection, dry_run=dry_run)
+
+
+def write_slash_command(
+    config: SkillsRouterConfig,
+    connection: dict[str, Any],
+    *,
+    raw: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Write or update a managed Skills Router slash command TOML for one agent target."""
+    slash_files = connection.get("slash_command_files") or []
+    target_raw = raw or (slash_files[0]["configured"] if slash_files else None)
+    if not target_raw:
+        raise ValueError("No slash command file is configured for this agent target")
+    path = _resolve_workspace_path(target_raw, config, label="Slash command files")
+    content = _slash_command_document(connection)
+    action = "created"
+    if path.exists():
+        current = path.read_text(encoding="utf-8")
+        if TOML_BEGIN_MARKER not in current or TOML_END_MARKER not in current:
+            raise ValueError(
+                "Refusing to overwrite unmanaged slash command file. "
+                f"Got: {path}"
+            )
+        action = "updated"
+    if dry_run:
+        return {
+            "status": "DRY_RUN",
+            "dry_run": True,
+            "action": "would_create" if action == "created" else "would_update",
+            "path": str(path),
+            "target": connection.get("target"),
+        }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return {
+        "status": "OK",
+        "dry_run": False,
+        "action": action,
+        "path": str(path),
+        "target": connection.get("target"),
+    }
+
+
+def _slash_command_entry(
+    raw: str,
+    config: SkillsRouterConfig,
+    *,
+    recommended: bool,
+) -> dict[str, Any]:
+    path = _resolve_workspace_path(raw, config, label="Slash command files")
+    managed_present = False
+    if path.exists():
+        text = path.read_text(encoding="utf-8")
+        managed_present = TOML_BEGIN_MARKER in text and TOML_END_MARKER in text
+    return {
+        "configured": raw,
+        "path": str(path),
+        "exists": path.exists(),
+        "managed_present": managed_present,
+        "recommended": recommended,
+    }
+
+
+def _slash_command_document(connection: dict[str, Any]) -> str:
+    """Render a managed .gemini/commands/skills-router.toml for one agent target."""
+    target = connection.get("target", "antigravity-ide")
+    agent_id = connection.get("agent_id", "<agent-id>")
+    return (
+        f"{TOML_BEGIN_MARKER}\n"
+        f"# Generated by Skills Router connect. Edit with care.\n"
+        f'description = "Route /skills-router requests through Skills Router MCP or CLI."\n'
+        f'prompt = """\n'
+        f"Handle this as a Skills Router registry request.\n"
+        f"User text: /skills-router {{{{args}}}}\n\n"
+        f"Preferred execution order:\n"
+        f"1. If MCP tools are available, call `run_slash_command` with the full user text.\n"
+        f"   Use `refine_routes` for structured skillset names; `route_task` for task routing.\n"
+        f'2. Fallback: `skills-router chat "/skills-router {{{{args}}}}" '
+        f"--target {target} --agent-id {agent_id} --json`.\n\n"
+        f"Reply: prefer `human_summary`; do not paste raw JSON unless asked.\n"
+        f'Safety: never use --yes or auto_approve unless the user explicitly accepts risk.\n"""\n'
+        f"{TOML_END_MARKER}\n"
+    )
 
 
 def _build_global_agent_connection(
