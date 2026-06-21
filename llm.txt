@@ -1,0 +1,125 @@
+# Skills Router
+
+Skills Router is a trust-gated skillset manager, discovery engine, conflict resolver, and routing layer designed specifically for AI-agent hosts (e.g., Cursor, Windsurf, Cline, Claude, Codex, Antigravity).
+
+It manages the metadata, decisions, routing rules (`skills-router.json`), and lockfiles for agent skills, allowing host agents to query and execute capabilities dynamically. It is *not* a general package manager—it coordinates with host package managers (like `npm` or `pip`) without owning or duplicating package files.
+
+---
+
+## Core Architecture & Concepts
+
+### 1. Package Presence vs. Agent Activation
+* **Package Presence:** The underlying files, code, and virtual environments are installed and owned by standard package managers (`pip`, `npm`, local checkouts, etc.).
+* **Brain Index:** Skills Router stores metadata (manifests, trust scores, semantic embeddings, capabilities, and scopes) in a local index under `~/.skills-router/`.
+* **Routing State:** Stored in `skills-router.json` which maps task rules/descriptions to active package routes.
+* **Selection:** When packages conflict or external skills are discovered, they remain in a `needs_selection` state until the human confirms the routing choice.
+
+### 2. Supported AI-Agent Hosts
+Skills Router can automatically write managed bridge skills/instructions for the following agent target systems:
+`antigravity`, `antigravity-cli`, `antigravity-ide`, `codex`, `codex-ide`, `claude`, `hermes-agent`, `opencode`, `cline`, `cursor`, and `windsurf`.
+
+---
+
+## AI Agent Integration & Workflows
+
+AI agents should interact with Skills Router dynamically rather than reading static rule files.
+
+### 1. Connecting through MCP (Recommended)
+Expose Skills Router as a Model Context Protocol (MCP) server:
+```json
+{
+  "mcpServers": {
+    "skills-router": {
+      "command": "skills-router",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+**Key MCP Tools:**
+* `route_task(task: str, target: Optional[str]) -> RouteResult`: Query active routes matching a given task description for the calling agent target.
+* `run_slash_command(command: str) -> SlashResult`: Execute natural slash commands written by users.
+* `get_agent_prompt(target: str, detail: str = "compact") -> str`: Retrieve the bridge system instructions.
+* `get_router_status() -> StatusResult`: Get registered skill counts and active paths.
+* `install_tool`, `uninstall_tool`, `index_routes`, `refine_routes`, `list_tools`, `inspect_tool`.
+
+### 2. Task Routing Workflow
+When a user asks the host agent to perform a task (e.g., "Draft release notes"):
+1. Call `route_task` or run `skills-router route "Draft release notes" --target <agent-name> --json`.
+2. Check the response status:
+   * `OK`: Execute the specified package/tool.
+   * `REVIEW_NEEDED` / `needs_selection`: Prompt the human to choose a route.
+   * `NO_ROUTE`: Fall back to default reasoning or notify the user.
+
+---
+
+## Command Line Interface (CLI) Reference
+
+### `skills-router connect`
+Detects active agent hosts on the system and installs the managed `skills-router/SKILL.md` bridge instruction file into their global/workspace folders.
+* `skills-router connect --dry-run`
+* `skills-router connect`
+
+### `skills-router install`
+Registers a package or manifest, performs trust/dependency analysis, and configures routes.
+* Local manifest: `skills-router install examples/sample_manifests/weather_tool.json`
+* NPM package: `skills-router install writer-pack --package-type skillset`
+* Remote URL: `skills-router install https://github.com/owner/repo --infer`
+* Flags:
+  * `--scope <global | workspace:id>`: Controls visibility bounds.
+  * `--all-agents`: Registers the skill globally for all default agents.
+  * `--agent-target <agent1,agent2>`: Narrows routes to specific hosts.
+  * `--routing-mode <full_package | selective_routes>`
+  * `--dry-run`: Evaluate without persisting state.
+  * `--yes` / `--decision-policy approve`: Bypasses prompts (for explicit human consent only).
+
+### `skills-router refine`
+Scans global and workspace folders (e.g., `.agents/skills`, `.cursor/skills`, `$CODEX_HOME/skills`) for externally installed skills/plugins, registers their manifests, and marks them as `needs_selection`.
+* `skills-router refine`
+* `skills-router refine --dry-run --json`
+
+### `skills-router index`
+Rebuilds vector/semantic indexes, checks for conflicts, and flags packages that were deleted/stale.
+* `skills-router index --json`
+
+### `skills-router uninstall`
+Removes package metadata and routing configurations from Skills Router. *Does not delete the underlying files.*
+* `skills-router uninstall <package-id>`
+
+### `skills-router route`
+Queries the router for the best matching active route for a given task.
+* `skills-router route "task description" --target <target-agent>`
+
+### `skills-router status`
+Displays database locations, configured agent directories, and index metadata counts.
+* `skills-router status --json`
+
+### `skills-router analyze`
+Inspects remote source URLs (npm, GitHub) to infer a draft manifest without installing anything.
+* `skills-router analyze https://github.com/owner/repo`
+
+### `skills-router chat`
+Translates natural slash command text from the user into strict commands.
+* `skills-router chat "/skills-router install writer-pack for all agents" --target cursor`
+
+---
+
+## Configuration
+
+Custom settings can be stored in `~/.skills-router/config.json`:
+```json
+{
+  "storage_backend": "memory",
+  "workspace_root": "/path/to/project",
+  "workspace_skill_dirs": [".agents/skills", ".cursor/skills"],
+  "global_skill_dirs": ["~/.cursor/skills", "~/.codex/skills"],
+  "pgvector_dsn": "postgresql://user:pass@localhost:5432/skills_router"
+}
+```
+
+---
+
+## Developer Guidelines
+* **No Auto-Approve:** Do not run write operations with auto-approval (`--yes`) unless the human has explicitly authorized the action.
+* **Metadata Focus:** Let `pip` or `npm` manage files; update Skills Router with `skills-router index` or `refine` to reflect changes.
+* **Keep Prompts Compact:** Render bridge instructions using the default compact format to preserve agent context windows.
