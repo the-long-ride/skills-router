@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.8] - 2026-06-22
+
+### Added
+- Added `llm.txt` in the root directory detailing Skills Router usage instructions for AI agents.
+- Packaged `llm.txt` inside built wheels, source distributions, and Node/NPM wrapper packages.
+
 ## [0.0.7] - 2026-06-20
 
 ### Added
