@@ -7,16 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.9] - 2026-06-22
 
+### Added
+- Added `roo-code` target for Roo Code (Roo-Cline) supporting modular rules (`.roo/rules/`), workspace skills, and global skill folders.
+- Added standard rules files (`.clinerules`, `.cursorrules`, `.windsurfrules`) to Cline, Cursor, and Windsurf profiles respectively for reliable project instruction discovery.
+- Added slash command support (`.gemini/commands/skills-router.toml`) for Antigravity IDE and updated profiles to declare slash command configuration files.
+
+### Changed
+- Configured Python package version in `src/skills_router/_version.py` to be automatically synchronized and generated from the npm wrapper `package.json` settings file at development/build time.
+
 ### Fixed
-- Fixed Antigravity not being detected by `skills-router connect` on Windows.
-  `os.path.expandvars` only handles `%VAR%` syntax on Windows, so `$ANTIGRAVITY_HOME`
-  (and other `$VAR`-style entries) were left as literal strings and resolved as
-  CWD-relative paths. Added a manual regex substitution in `_resolve_global_path`
-  to expand `$VAR` / `${VAR}` cross-platform before falling back to `expandvars`.
-- Added `~/.gemini/antigravity/skills` as the primary `global_skill_dirs` entry
-  for all three Antigravity profiles (`antigravity`, `antigravity-cli`,
-  `antigravity-ide`), matching the actual Antigravity app data directory so
-  detection works without `ANTIGRAVITY_HOME` being set.
+- Fixed Antigravity not being detected by `skills-router connect` on Windows by manually expanding `$VAR` / `${VAR}` cross-platform before falling back to `expandvars`.
+- Added `~/.gemini/antigravity/skills` as the primary `global_skill_dirs` entry for all three Antigravity profiles (`antigravity`, `antigravity-cli`, `antigravity-ide`).
+- Added `~/.copilot/skills` to GitHub Copilot's `global_skill_dirs` (for Copilot CLI and Desktop) and `~/.config/opencode/skills` to OpenCode's `global_skill_dirs`.
 
 ## [0.0.8] - 2026-06-22
 
