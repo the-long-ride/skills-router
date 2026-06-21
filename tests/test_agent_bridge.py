@@ -716,6 +716,7 @@ def test_refine_discovers_workspace_skill_and_requires_activation(tmp_path):
         encoding="utf-8",
     )
     config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.global_data_dir = str(tmp_path / "global_data")
     config.workspace_root = str(tmp_path)
     config.global_skill_dirs = []
     store = MemoryBrainIndexStore(
