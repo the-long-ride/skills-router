@@ -54,8 +54,14 @@ Homepage = "https://github.com/the-long-ride/skills-router"
 Repository = "https://github.com/the-long-ride/skills-router"
 Issues = "https://github.com/the-long-ride/skills-router/issues"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+skills_router = ["llm.txt"]
 
 [tool.setuptools.dynamic]
 version = {attr = "skills_router._version.__version__"}

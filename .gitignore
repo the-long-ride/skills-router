@@ -21,3 +21,7 @@ base-idea.md
 .engramignore
 .agents/
 AGENTS.md
+
+# Generated llm.txt copies for packaging
+src/skills_router/llm.txt
+skills-router-npx/llm.txt

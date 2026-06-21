@@ -21,7 +21,8 @@
     "skills-router": "bin/cli.js"
   },
   "files": [
-    "bin/cli.js"
+    "bin/cli.js",
+    "llm.txt"
   ],
   "author": "the-long-ride",
   "license": "GPL-3.0-only",
@@ -37,6 +38,7 @@
     "access": "public"
   },
   "scripts": {
+    "prepack": "node -e \"const fs = require('fs'); fs.copyFileSync('../llm.txt', './llm.txt');\"",
     "smoke": "node ./bin/cli.js --help",
     "pack:check": "npm pack --dry-run",
     "prepublishOnly": "npm run smoke"
