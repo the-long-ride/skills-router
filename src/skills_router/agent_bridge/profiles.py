@@ -153,7 +153,7 @@ _PROFILES: dict[str, AgentProfile] = {
     "github-copilot": AgentProfile(
         target="github-copilot",
         display_name="GitHub Copilot",
-        aliases=("copilot", "gh-copilot", "github"),
+        aliases=("copilot", "gh-copilot", "github", "copilot-cli", "copilot-desktop", "github-copilot-cli"),
         instruction_files=(".github/copilot-instructions.md", "AGENTS.md"),
         mcp_config_hint=(
             "For VS Code/Copilot MCP, add a workspace server that runs "
@@ -166,9 +166,13 @@ _PROFILES: dict[str, AgentProfile] = {
         notes=(
             "Use repository instructions so Copilot Agent mode knows when to "
             "call Skills Router.",
+            "~/.copilot/skills is the global skill dir for Copilot CLI and Desktop.",
         ),
         workspace_skill_dirs=(".github/skills", ".agents/skills"),
-        global_skill_dirs=("~/.github-copilot/skills",),
+        global_skill_dirs=(
+            "~/.copilot/skills",           # Copilot CLI and Desktop (primary)
+            "~/.github-copilot/skills",    # legacy / future path
+        ),
     ),
     "antigravity": AgentProfile(
         target="antigravity",

@@ -48,7 +48,7 @@ def test_render_agent_prompt_is_target_specific_and_compact():
     assert "workspace:copilot-agent" in prompt
     assert "run_slash_command" in prompt
     assert "Preferred execution order" not in prompt
-    assert len(prompt) < 1400
+    assert len(prompt) < 1450
 
 
 def test_render_agent_prompt_full_detail_keeps_expanded_contract():
