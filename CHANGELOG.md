@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.9] - 2026-06-22
+
+### Fixed
+- Fixed Antigravity not being detected by `skills-router connect` on Windows.
+  `os.path.expandvars` only handles `%VAR%` syntax on Windows, so `$ANTIGRAVITY_HOME`
+  (and other `$VAR`-style entries) were left as literal strings and resolved as
+  CWD-relative paths. Added a manual regex substitution in `_resolve_global_path`
+  to expand `$VAR` / `${VAR}` cross-platform before falling back to `expandvars`.
+- Added `~/.gemini/antigravity/skills` as the primary `global_skill_dirs` entry
+  for all three Antigravity profiles (`antigravity`, `antigravity-cli`,
+  `antigravity-ide`), matching the actual Antigravity app data directory so
+  detection works without `ANTIGRAVITY_HOME` being set.
+
 ## [0.0.8] - 2026-06-22
 
 ### Added
