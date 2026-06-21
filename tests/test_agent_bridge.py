@@ -28,6 +28,7 @@ def test_profiles_include_requested_agent_targets():
         "codex",
         "codex-ide",
         "cline",
+        "roo-code",
         "cursor",
         "kiro",
         "claude",
@@ -623,6 +624,26 @@ def test_agent_target_report_ignores_shared_agent_skill_dir(tmp_path):
     cursor = next(item for item in report["targets"] if item["target"] == "cursor")
     assert cursor["installed"] is False
     assert report["installed_target_count"] == 0
+
+
+def test_roo_code_profile_properties_and_report_detection(tmp_path):
+    from skills_router.agent_bridge.targeting import build_agent_target_report
+    from skills_router.agent_bridge.profiles import get_agent_profile
+
+    # Verify profile exists and properties are populated
+    profile = get_agent_profile("roo-code")
+    assert profile.display_name == "Roo Code"
+    assert "roo-cline" in profile.aliases
+    assert ".clinerules" in profile.instruction_files
+
+    roo_dir = tmp_path / ".roo" / "skills"
+    roo_dir.mkdir(parents=True)
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path)
+
+    report = build_agent_target_report(config, targets=["roo-code"])
+    roo = next(item for item in report["targets"] if item["target"] == "roo-code")
+    assert roo["installed"] is True
 
 
 def test_index_marks_missing_routes_without_deleting(tmp_path):
@@ -1224,9 +1245,9 @@ def test_execute_slash_command_installs_once_for_all_agents(
     assert result["status"] == "INSTALLED"
     assert result["intent"]["all_agents"] is True
     assert result["intent"]["scope"] == "global"
-    assert result["agent_targets"]["target_count"] == 11
+    assert result["agent_targets"]["target_count"] == 13
     assert "cursor" in result["skills_routing"]["target_agents"]
-    assert "Applies to 11 agent target(s)" in result["human_summary"]
+    assert "Applies to 13 agent target(s)" in result["human_summary"]
     routing_file = tmp_path / "skills-router.json"
     packages = json.loads(routing_file.read_text())["packages"]
     assert packages["weather-tool"]["scope"] == "global"

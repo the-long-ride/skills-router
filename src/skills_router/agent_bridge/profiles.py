@@ -32,8 +32,10 @@ DEFAULT_ALL_AGENT_TARGETS: tuple[str, ...] = (
     "hermes-agent",
     "opencode",
     "cline",
+    "roo-code",
     "cursor",
     "windsurf",
+    "github-copilot",
 )
 
 
@@ -96,7 +98,7 @@ _PROFILES: dict[str, AgentProfile] = {
         target="cline",
         display_name="Cline",
         aliases=("cline-ai", "cline-vscode"),
-        instruction_files=(".clinerules/skills-router.md", "AGENTS.md"),
+        instruction_files=(".clinerules/skills-router.md", ".clinerules", "AGENTS.md"),
         mcp_config_hint=(
             'Use Cline MCP settings with command "skills-router" and args ["mcp"].'
         ),
@@ -111,6 +113,31 @@ _PROFILES: dict[str, AgentProfile] = {
         ),
         workspace_skill_dirs=(".cline/skills", ".agents/skills"),
         global_skill_dirs=("~/.cline/skills",),
+    ),
+    "roo-code": AgentProfile(
+        target="roo-code",
+        display_name="Roo Code",
+        aliases=("roo-cline", "roocode", "roocline"),
+        instruction_files=(
+            ".roo/rules/skills-router.md",
+            ".clinerules/skills-router.md",
+            ".clinerules",
+            "AGENTS.md",
+        ),
+        mcp_config_hint=(
+            'Use Roo Code MCP settings with command "skills-router" and args ["mcp"].'
+        ),
+        invocation_hint=(
+            'If MCP is unavailable, run '
+            '`skills-router chat "<slash request>" --target roo-code --json`.'
+        ),
+        notes=(
+            "Rules should trigger on /skills-router, install agent tool, "
+            "registry, and MCP package requests.",
+            "Do not paste large Skills Router JSON into chat unless the human asks for it.",
+        ),
+        workspace_skill_dirs=(".roo/skills", ".agents/skills"),
+        global_skill_dirs=("~/.roo/skills", "~/.roo/rules"),
     ),
     "kiro": AgentProfile(
         target="kiro",
@@ -286,7 +313,7 @@ _PROFILES: dict[str, AgentProfile] = {
         target="cursor",
         display_name="Cursor",
         aliases=("cursor-ai", "cursor-agent"),
-        instruction_files=(".cursor/rules/skills-router.md", "AGENTS.md"),
+        instruction_files=(".cursor/rules/skills-router.md", ".cursorrules", "AGENTS.md"),
         mcp_config_hint=(
             'Use Cursor MCP settings with command "skills-router" and args ["mcp"].'
         ),
@@ -304,7 +331,7 @@ _PROFILES: dict[str, AgentProfile] = {
         target="windsurf",
         display_name="Windsurf",
         aliases=("windsurf-ai", "windsurf-agent"),
-        instruction_files=(".windsurf/rules/skills-router.md", "AGENTS.md"),
+        instruction_files=(".windsurf/rules/skills-router.md", ".windsurfrules", "AGENTS.md"),
         mcp_config_hint=(
             'Use Windsurf MCP settings with command "skills-router" and args ["mcp"].'
         ),
