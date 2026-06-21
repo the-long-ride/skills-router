@@ -188,7 +188,7 @@ _PROFILES: dict[str, AgentProfile] = {
             "Keep registry/package mutations explicit in Antigravity permissions.",
         ),
         workspace_skill_dirs=(".agent/skills", ".antigravity/skills", ".agents/skills"),
-        global_skill_dirs=("$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
+        global_skill_dirs=("~/.gemini/antigravity/skills", "$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
     ),
     "antigravity-cli": AgentProfile(
         target="antigravity-cli",
@@ -208,7 +208,7 @@ _PROFILES: dict[str, AgentProfile] = {
             "can mutate local tool state.",
         ),
         workspace_skill_dirs=(".agent/skills", ".antigravity/skills", ".agents/skills"),
-        global_skill_dirs=("$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
+        global_skill_dirs=("~/.gemini/antigravity/skills", "$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
     ),
     "antigravity-ide": AgentProfile(
         target="antigravity-ide",
@@ -232,7 +232,7 @@ _PROFILES: dict[str, AgentProfile] = {
             "Prefer MCP route lookup over embedding generated route tables in the IDE prompt.",
         ),
         workspace_skill_dirs=(".antigravity/skills", ".agent/skills", ".agents/skills"),
-        global_skill_dirs=("$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
+        global_skill_dirs=("~/.gemini/antigravity/skills", "$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
     ),
     "opencode": AgentProfile(
         target="opencode",

@@ -554,7 +554,19 @@ def _resolve_workspace_path(raw: str, config: SkillsRouterConfig, *, label: str)
 
 
 def _resolve_global_path(raw: str) -> Path:
-    expanded = os.path.expandvars(str(raw))
+    # os.path.expandvars only handles %VAR% on Windows, not $VAR.
+    # Manually expand $VAR / ${VAR} so profiles stay cross-platform.
+    import re
+
+    def _expand_dollar(m: re.Match) -> str:  # type: ignore[type-arg]
+        return os.environ.get(m.group(1) or m.group(2), m.group(0))
+
+    dollar_expanded = re.sub(
+        r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)",
+        _expand_dollar,
+        str(raw),
+    )
+    expanded = os.path.expandvars(dollar_expanded)  # also handle %VAR% style
     return Path(expanded).expanduser().resolve(strict=False)
 
 
