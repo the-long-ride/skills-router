@@ -981,6 +981,7 @@ def cmd_status(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
     )
     _print_status_state_paths(result)
     _print_status_skill_paths(result)
+    _print_status_slash_command_paths(result)
     return EXIT_SUCCESS
 
 
@@ -1017,6 +1018,35 @@ def _print_status_skill_paths(result: dict[str, Any]) -> None:
     rows = []
     for scope in ("workspace", "global"):
         rows.extend(result.get("skill_paths", {}).get(scope, []))
+    for entry in rows:
+        exists = "unresolved env" if entry.get("env_unresolved") else (
+            "yes" if entry.get("exists") else "no"
+        )
+        table.add_row(
+            str(entry.get("scope", "")),
+            str(entry.get("configured", "")),
+            exists,
+            str(entry.get("path", "")),
+        )
+    console.print(table)
+
+
+def _print_status_slash_command_paths(result: dict[str, Any]) -> None:
+    slash_paths = result.get("slash_command_paths", {})
+    if not slash_paths.get("workspace") and not slash_paths.get("global"):
+        return
+    table = Table(
+        title="Configured Host Slash Commands",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("Scope", style="bold")
+    table.add_column("Configured")
+    table.add_column("Exists")
+    table.add_column("Path")
+    rows = []
+    for scope in ("workspace", "global"):
+        rows.extend(slash_paths.get(scope, []))
     for entry in rows:
         exists = "unresolved env" if entry.get("env_unresolved") else (
             "yes" if entry.get("exists") else "no"
@@ -1318,6 +1348,30 @@ def cmd_connect(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
                 str(item["skill_path"]),
             )
     console.print(table)
+
+    has_slash_writes = False
+    for target in result["detected_targets"]:
+        if target.get("global_slash_command_files"):
+            has_slash_writes = True
+            break
+
+    if has_slash_writes:
+        slash_table = Table(
+            title="Detected Global Agent Slash Commands",
+            show_header=True,
+            header_style="bold cyan",
+        )
+        slash_table.add_column("Target")
+        slash_table.add_column("Action")
+        slash_table.add_column("Path")
+        for target in result["detected_targets"]:
+            for item in target.get("global_slash_command_files") or []:
+                slash_table.add_row(
+                    target["target"],
+                    actions_by_path.get(item["path"], "deduped"),
+                    str(item["path"]),
+                )
+        console.print(slash_table)
     return EXIT_SUCCESS
 
 

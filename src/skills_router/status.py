@@ -27,6 +27,8 @@ def build_router_status(
     dep_graph = store.get_dep_graph()
     routing_state = read_routing_state(config)
     packages = routing_state.get("packages", {})
+    from skills_router.agent_bridge.profiles import list_agent_profiles
+
     workspace_paths = _skill_path_entries(
         config.workspace_skill_dirs,
         scope="workspace",
@@ -37,6 +39,26 @@ def build_router_status(
         scope="global",
         workspace_root=None,
     )
+
+    workspace_slashes = set()
+    global_slashes = set()
+    for profile in list_agent_profiles():
+        for f in profile.slash_command_files:
+            workspace_slashes.add(f)
+        for f in profile.global_slash_command_files:
+            global_slashes.add(f)
+
+    workspace_slash_paths = _skill_path_entries(
+        sorted(workspace_slashes),
+        scope="workspace",
+        workspace_root=Path(config.workspace_root),
+    )
+    global_slash_paths = _skill_path_entries(
+        sorted(global_slashes),
+        scope="global",
+        workspace_root=None,
+    )
+
     package_statuses = Counter(
         str(package.get("status", "unknown")) for package in packages.values()
     )
@@ -71,6 +93,10 @@ def build_router_status(
         "skill_paths": {
             "workspace": workspace_paths,
             "global": global_paths,
+        },
+        "slash_command_paths": {
+            "workspace": workspace_slash_paths,
+            "global": global_slash_paths,
         },
         "counts": counts,
         "package_statuses": dict(sorted(package_statuses.items())),
