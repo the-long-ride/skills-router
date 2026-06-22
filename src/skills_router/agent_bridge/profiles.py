@@ -222,8 +222,15 @@ _PROFILES: dict[str, AgentProfile] = {
         ),
         workspace_skill_dirs=(".agent/skills", ".antigravity/skills", ".agents/skills"),
         global_skill_dirs=("~/.gemini/antigravity/skills", "$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
-        slash_command_files=(".gemini/commands/skills-router.toml",),
-        global_slash_command_files=("~/.gemini/commands/skills-router.toml",),
+        slash_command_files=(
+            ".antigravity/commands/skills-router.toml",
+            ".gemini/commands/skills-router.toml",
+        ),
+        global_slash_command_files=(
+            "~/.gemini/antigravity/commands/skills-router.toml",
+            "~/.gemini/commands/skills-router.toml",
+            "~/.antigravity/commands/skills-router.toml",
+        ),
     ),
     "antigravity-cli": AgentProfile(
         target="antigravity-cli",
@@ -244,8 +251,15 @@ _PROFILES: dict[str, AgentProfile] = {
         ),
         workspace_skill_dirs=(".agent/skills", ".antigravity/skills", ".agents/skills"),
         global_skill_dirs=("~/.gemini/antigravity/skills", "$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
-        slash_command_files=(".gemini/commands/skills-router.toml",),
-        global_slash_command_files=("~/.gemini/commands/skills-router.toml",),
+        slash_command_files=(
+            ".antigravity/commands/skills-router.toml",
+            ".gemini/commands/skills-router.toml",
+        ),
+        global_slash_command_files=(
+            "~/.gemini/antigravity/commands/skills-router.toml",
+            "~/.gemini/commands/skills-router.toml",
+            "~/.antigravity/commands/skills-router.toml",
+        ),
     ),
     "antigravity-ide": AgentProfile(
         target="antigravity-ide",
@@ -270,8 +284,15 @@ _PROFILES: dict[str, AgentProfile] = {
         ),
         workspace_skill_dirs=(".antigravity/skills", ".agent/skills", ".agents/skills"),
         global_skill_dirs=("~/.gemini/antigravity/skills", "$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
-        slash_command_files=(".gemini/commands/skills-router.toml",),
-        global_slash_command_files=("~/.gemini/commands/skills-router.toml",),
+        slash_command_files=(
+            ".antigravity/commands/skills-router.toml",
+            ".gemini/commands/skills-router.toml",
+        ),
+        global_slash_command_files=(
+            "~/.gemini/antigravity/commands/skills-router.toml",
+            "~/.gemini/commands/skills-router.toml",
+            "~/.antigravity/commands/skills-router.toml",
+        ),
     ),
     "opencode": AgentProfile(
         target="opencode",

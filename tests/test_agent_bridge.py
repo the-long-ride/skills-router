@@ -248,7 +248,7 @@ def test_write_detected_global_slash_commands(tmp_path, monkeypatch):
     antigravity_targets = [t for t in result["detected_targets"] if t["target"] in ("antigravity", "antigravity-cli", "antigravity-ide")]
     assert len(antigravity_targets) > 0
     for target in antigravity_targets:
-        assert len(target["global_slash_command_files"]) == 1
+        assert len(target["global_slash_command_files"]) == 3
         assert "commands" in target["global_slash_command_files"][0]["path"]
 
     res = write_detected_bridge_skills(result)

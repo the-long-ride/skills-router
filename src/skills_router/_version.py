@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-__version__ = "0.0.10"
+__version__ = "0.0.11"
 
 
 def _auto_update() -> None:
