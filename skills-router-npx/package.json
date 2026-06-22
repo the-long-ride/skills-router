@@ -1,6 +1,6 @@
 {
   "name": "@the-long-ride/skills-router",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "NPM wrapper for Skills Router, the Python-based AI-agent skillset manager",
   "keywords": [
     "ai-agent",

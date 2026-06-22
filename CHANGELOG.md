@@ -5,13 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.10] - 2026-06-22
+
+### Added
+- Added support for global slash command configuration files (`~/.gemini/commands/skills-router.toml`) for all three Antigravity profiles, automatically created by `skills-router connect`.
+- Display configured host/global slash command files in `status` and `connect` outputs for Antigravity target profiles.
+
 ## [0.0.9] - 2026-06-22
 
 ### Added
 - Added `roo-code` target for Roo Code (Roo-Cline) supporting modular rules (`.roo/rules/`), workspace skills, and global skill folders.
 - Added standard rules files (`.clinerules`, `.cursorrules`, `.windsurfrules`) to Cline, Cursor, and Windsurf profiles respectively for reliable project instruction discovery.
 - Added slash command support (`.gemini/commands/skills-router.toml`) for Antigravity IDE and updated profiles to declare slash command configuration files.
-- Added support for global slash command configuration files (`~/.gemini/commands/skills-router.toml`) for all three Antigravity profiles, automatically created by `skills-router connect`.
 
 ### Changed
 - Configured Python package version in `src/skills_router/_version.py` to be automatically synchronized and generated from the npm wrapper `package.json` settings file at development/build time.
