@@ -228,6 +228,39 @@ def test_write_detected_global_bridge_skills_is_idempotent(tmp_path, monkeypatch
     assert text.count("name: skills-router") == 1
 
 
+def test_write_detected_global_slash_commands(tmp_path, monkeypatch):
+    from skills_router.agent_bridge.connect import (
+        TOML_BEGIN_MARKER,
+        build_detected_agent_connections,
+        write_detected_bridge_skills,
+    )
+
+    _isolate_agent_home(monkeypatch, tmp_path)
+    gemini_home = tmp_path / "gemini-home"
+    (gemini_home / ".gemini" / "antigravity" / "skills").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(gemini_home))
+    monkeypatch.setenv("USERPROFILE", str(gemini_home))
+
+    config = SkillsRouterConfig(data_dir=str(tmp_path / "data"))
+    config.workspace_root = str(tmp_path / "workspace")
+
+    result = build_detected_agent_connections(config)
+    antigravity_targets = [t for t in result["detected_targets"] if t["target"] in ("antigravity", "antigravity-cli", "antigravity-ide")]
+    assert len(antigravity_targets) > 0
+    for target in antigravity_targets:
+        assert len(target["global_slash_command_files"]) == 1
+        assert "commands" in target["global_slash_command_files"][0]["path"]
+
+    res = write_detected_bridge_skills(result)
+    assert res["status"] == "OK"
+
+    slash_file = gemini_home / ".gemini" / "commands" / "skills-router.toml"
+    assert slash_file.exists()
+    text = slash_file.read_text(encoding="utf-8")
+    assert TOML_BEGIN_MARKER in text
+    assert "Handle this as a Skills Router registry request." in text
+
+
 def test_rerun_detects_new_global_agent_without_duplicating_existing_bridge(
     tmp_path,
     monkeypatch,

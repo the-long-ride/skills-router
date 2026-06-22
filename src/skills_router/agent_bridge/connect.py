@@ -122,6 +122,20 @@ def write_detected_bridge_skills(
             )
         )
 
+    for target in connection.get("detected_targets") or []:
+        for item in target.get("global_slash_command_files") or []:
+            slash_path = Path(item["path"])
+            try:
+                writes.append(
+                    _write_global_slash_command_path(
+                        slash_path,
+                        target,
+                        dry_run=dry_run,
+                    )
+                )
+            except Exception:
+                pass
+
     return {
         "status": "DRY_RUN" if dry_run else "OK",
         "dry_run": dry_run,
@@ -432,6 +446,23 @@ def _build_global_agent_connection(
                 from_source=from_source,
             )
             target_report["skill_dirs"] = [detected[0]]
+            global_slash_files = []
+            for raw in profile.global_slash_command_files:
+                path = _resolve_global_path(raw)
+                managed_present = False
+                if path.exists():
+                    try:
+                        text = path.read_text(encoding="utf-8")
+                        managed_present = TOML_BEGIN_MARKER in text and TOML_END_MARKER in text
+                    except Exception:
+                        pass
+                global_slash_files.append({
+                    "configured": raw,
+                    "path": str(path),
+                    "exists": path.exists(),
+                    "managed_present": managed_present,
+                })
+            target_report["global_slash_command_files"] = global_slash_files
             detected_targets.append(target_report)
         else:
             missing_targets.append(target_report)
@@ -520,6 +551,45 @@ def _write_bridge_skill_path(
         "action": action,
         "path": str(path),
         "target": connection.get("target"),
+    }
+
+
+def _write_global_slash_command_path(
+    path: Path,
+    target_report: dict[str, Any],
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
+    content = _slash_command_document(target_report)
+    action = "created"
+    if path.exists():
+        current = path.read_text(encoding="utf-8")
+        if TOML_BEGIN_MARKER not in current or TOML_END_MARKER not in current:
+            raise ValueError(
+                "Refusing to overwrite unmanaged slash command file. "
+                f"Got: {path}"
+            )
+        action = "updated"
+    if dry_run:
+        preview_action = {
+            "created": "would_create",
+            "updated": "would_update",
+        }.get(action, f"would_{action}")
+        return {
+            "status": "DRY_RUN",
+            "dry_run": True,
+            "action": preview_action,
+            "path": str(path),
+            "target": target_report.get("target"),
+        }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return {
+        "status": "OK",
+        "dry_run": False,
+        "action": action,
+        "path": str(path),
+        "target": target_report.get("target"),
     }
 
 

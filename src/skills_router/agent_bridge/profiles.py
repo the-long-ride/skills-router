@@ -20,6 +20,7 @@ class AgentProfile:
     global_skill_dirs: tuple[str, ...] = ()
     preferred_bridge: str = "instructions"
     slash_command_files: tuple[str, ...] = ()
+    global_slash_command_files: tuple[str, ...] = ()
 
 
 DEFAULT_ALL_AGENT_TARGETS: tuple[str, ...] = (
@@ -222,6 +223,7 @@ _PROFILES: dict[str, AgentProfile] = {
         workspace_skill_dirs=(".agent/skills", ".antigravity/skills", ".agents/skills"),
         global_skill_dirs=("~/.gemini/antigravity/skills", "$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
         slash_command_files=(".gemini/commands/skills-router.toml",),
+        global_slash_command_files=("~/.gemini/commands/skills-router.toml",),
     ),
     "antigravity-cli": AgentProfile(
         target="antigravity-cli",
@@ -243,6 +245,7 @@ _PROFILES: dict[str, AgentProfile] = {
         workspace_skill_dirs=(".agent/skills", ".antigravity/skills", ".agents/skills"),
         global_skill_dirs=("~/.gemini/antigravity/skills", "$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
         slash_command_files=(".gemini/commands/skills-router.toml",),
+        global_slash_command_files=("~/.gemini/commands/skills-router.toml",),
     ),
     "antigravity-ide": AgentProfile(
         target="antigravity-ide",
@@ -268,6 +271,7 @@ _PROFILES: dict[str, AgentProfile] = {
         workspace_skill_dirs=(".antigravity/skills", ".agent/skills", ".agents/skills"),
         global_skill_dirs=("~/.gemini/antigravity/skills", "$ANTIGRAVITY_HOME/skills", "~/.antigravity/skills"),
         slash_command_files=(".gemini/commands/skills-router.toml",),
+        global_slash_command_files=("~/.gemini/commands/skills-router.toml",),
     ),
     "opencode": AgentProfile(
         target="opencode",
