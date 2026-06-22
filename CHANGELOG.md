@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `roo-code` target for Roo Code (Roo-Cline) supporting modular rules (`.roo/rules/`), workspace skills, and global skill folders.
 - Added standard rules files (`.clinerules`, `.cursorrules`, `.windsurfrules`) to Cline, Cursor, and Windsurf profiles respectively for reliable project instruction discovery.
 - Added slash command support (`.gemini/commands/skills-router.toml`) for Antigravity IDE and updated profiles to declare slash command configuration files.
+- Added support for global slash command configuration files (`~/.gemini/commands/skills-router.toml`) for all three Antigravity profiles, automatically created by `skills-router connect`.
 
 ### Changed
 - Configured Python package version in `src/skills_router/_version.py` to be automatically synchronized and generated from the npm wrapper `package.json` settings file at development/build time.
