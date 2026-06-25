@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.12] - 2026-06-25
+
+### Added
+- Added central proxy and gateway support for lifecycle hooks and MCP servers of active installed skills.
+- Exposed a built-in `run_agent_hook` tool and dynamically proxy tool calls/list schemas from underlying active skills.
+- Added target-specific hook output formatting supporting Claude Code (`hookSpecificOutput`), Cursor (`additional_context`), and generic/standard targets (`additionalContext`).
+- Added CLI option `run-hook --target` to run hooks and output agent-formatted JSON payloads.
+- Added dynamic guidelines inside the agent bridge prompt for lifecycle hooks and proxied tools, appended only when active skills require them.
+- Added dynamic `hooks_config` generation in agent connection, generated only when active hooks exist.
+
 ## [0.0.11] - 2026-06-23
 
 ### Fixed
