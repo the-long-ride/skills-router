@@ -85,6 +85,7 @@ COMMAND_NAMES = {
     "route",
     "choose-home",
     "move-home",
+    "run-hook",
 }
 COMMAND_EXAMPLES: dict[str, list[str]] = {
     "analyze": [
@@ -1533,6 +1534,64 @@ def cmd_move_home(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
     return EXIT_SUCCESS
 
 
+def cmd_run_hook(args: argparse.Namespace, config: SkillsRouterConfig) -> int:
+    """Execute lifecycle hooks for an event and print merged context."""
+    from skills_router.layers.hook_runner import run_hooks_for_event
+    from skills_router.storage.memory_store import MemoryBrainIndexStore
+    from skills_router.agent_bridge.routing import read_routing_state
+    import json
+
+    context = None
+    if getattr(args, "context", None):
+        try:
+            context = json.loads(args.context)
+        except Exception as e:
+            if getattr(args, "json_output", False):
+                _print_json({"status": "ERROR", "error": f"Invalid context JSON: {e}"})
+            else:
+                console.print(f"[red]Error: Invalid context JSON: {e}[/red]")
+            return EXIT_ERROR
+
+    active_hooks = {}
+    try:
+        store = MemoryBrainIndexStore(
+            brain_index_path=config.brain_index_path,
+            dep_graph_path=config.dep_graph_path,
+        )
+        routing = read_routing_state(config)
+        packages = routing.get("packages", {})
+        for tool_id, pkg in packages.items():
+            if pkg.get("status") == "active":
+                entry = store.get_tool(tool_id)
+                if entry:
+                    caps = entry.get("layer_3_capabilities", {})
+                    hooks = caps.get("hooks", {})
+                    for event, hook_list in hooks.items():
+                        active_hooks.setdefault(event, []).extend(hook_list)
+    except Exception as exc:
+        if getattr(args, "json_output", False):
+            _print_json({"status": "ERROR", "error": str(exc)})
+        else:
+            console.print(f"[red]Error loading hooks: {exc}[/red]")
+        return EXIT_ERROR
+
+    result = run_hooks_for_event(args.event, active_hooks, context)
+    from skills_router.layers.hook_runner import format_hook_response
+    formatted_payload = format_hook_response(
+        args.event,
+        result.get("additional_context", ""),
+        target=getattr(args, "target", None),
+    )
+    if getattr(args, "json_output", False):
+        _print_json(formatted_payload)
+    else:
+        if result.get("additional_context"):
+            console.print(result["additional_context"])
+        else:
+            console.print("[yellow]No hook context generated.[/yellow]")
+    return EXIT_SUCCESS
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     parser = SkillsRouterArgumentParser(
@@ -1896,6 +1955,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_json_arg(p_move_home)
 
+    # -- run-hook -------------------------------------------------------------
+    p_run_hook = add_command_parser(
+        "run-hook",
+        "Execute registered lifecycle hooks and output merged context",
+    )
+    p_run_hook.add_argument(
+        "event",
+        help="Lifecycle event name (e.g. SessionStart)",
+    )
+    p_run_hook.add_argument(
+        "--context",
+        help="Optional JSON context object passed to hook environment",
+    )
+    p_run_hook.add_argument(
+        "--target",
+        help="Target agent (e.g. cursor, claude, github-copilot) to format hook JSON output",
+    )
+    _add_json_arg(p_run_hook)
+
     # -- help ------------------------------------------------------------------
     p_help = add_command_parser(
         "help",
@@ -1957,6 +2035,7 @@ def main() -> None:
         "route": cmd_route,
         "choose-home": cmd_choose_home,
         "move-home": cmd_move_home,
+        "run-hook": cmd_run_hook,
     }
 
     if args.command == "help":

@@ -113,6 +113,15 @@ class ManifestParser:
                     f"got {type(data[field_name]).__name__}"
                 )
 
+        caps_data = data.get("layer_3_capabilities") or data.get("capabilities")
+        if isinstance(caps_data, dict):
+            for dict_subfield in ("hooks", "mcp_servers"):
+                if dict_subfield in caps_data and not isinstance(caps_data[dict_subfield], dict):
+                    raise ManifestParseError(
+                        f"Field 'layer_3_capabilities.{dict_subfield}' must be a dict, "
+                        f"got {type(caps_data[dict_subfield]).__name__}"
+                    )
+
     def _normalise(self, data: dict) -> dict:
         """Fill in defaults for optional layers."""
         data.setdefault("dependencies", {})
@@ -164,6 +173,8 @@ class ManifestParser:
         caps.setdefault("outputs", [])
         caps.setdefault("permissions", [])
         caps.setdefault("extensible", False)
+        caps.setdefault("hooks", {})
+        caps.setdefault("mcp_servers", {})
 
         return data
 

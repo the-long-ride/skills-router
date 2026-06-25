@@ -8,8 +8,11 @@ hosts.
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from typing import Any, TextIO
+
+logger = logging.getLogger(__name__)
 
 from skills_router import __version__
 from skills_router.config import SkillsRouterConfig
@@ -68,7 +71,7 @@ def handle_request(request: dict[str, Any], config: SkillsRouterConfig) -> dict[
                 "capabilities": {"tools": {}},
             }
         elif method == "tools/list":
-            result = {"tools": _tool_specs()}
+            result = {"tools": _get_all_tools_specs(config)}
         elif method == "tools/call":
             result = _call_tool(params, config)
         else:
@@ -89,6 +92,87 @@ def handle_request(request: dict[str, Any], config: SkillsRouterConfig) -> dict[
 def _call_tool(params: dict[str, Any], config: SkillsRouterConfig) -> dict[str, Any]:
     name = params.get("name")
     arguments = params.get("arguments") or {}
+
+    builtin_tools = {
+        "get_agent_prompt",
+        "get_router_status",
+        "parse_slash_command",
+        "run_slash_command",
+        "analyze_package_source",
+        "install_tool",
+        "index_routes",
+        "refine_routes",
+        "route_task",
+        "uninstall_tool",
+        "list_tools",
+        "inspect_tool",
+        "use_skill",
+        "watch_once",
+        "run_agent_hook",
+    }
+
+    if name not in builtin_tools:
+        active_mcp = _get_active_mcp_specs(config)
+        target_spec = None
+        for server_name, spec in active_mcp.items():
+            declared_tools = spec.get("tools")
+            if isinstance(declared_tools, list):
+                if any(t.get("name") == name for t in declared_tools):
+                    target_spec = spec
+                    break
+            else:
+                command = spec.get("command")
+                args = spec.get("args") or []
+                env = spec.get("env")
+                if command:
+                    try:
+                        from skills_router.layers.mcp_client import MCPClient
+                        client = MCPClient(command, args, env)
+                        discovered = client.discover_tools()
+                        if any(t.get("name") == name for t in discovered):
+                            target_spec = spec
+                            break
+                    except Exception:
+                        pass
+        if target_spec:
+            command = target_spec["command"]
+            args = target_spec.get("args") or []
+            env = target_spec.get("env")
+            from skills_router.layers.mcp_client import MCPClient
+            client = MCPClient(command, args, env)
+            return client.call_tool(name, arguments)
+        else:
+            raise ValueError(f"Unknown tool: {name}")
+
+    if name == "run_agent_hook":
+        from skills_router.layers.hook_runner import run_hooks_for_event
+        from skills_router.storage.memory_store import MemoryBrainIndexStore
+        from skills_router.agent_bridge.routing import read_routing_state
+        
+        event_name = arguments["event_name"]
+        context = arguments.get("context")
+        
+        active_hooks = {}
+        try:
+            store = MemoryBrainIndexStore(
+                brain_index_path=config.brain_index_path,
+                dep_graph_path=config.dep_graph_path,
+            )
+            routing = read_routing_state(config)
+            packages = routing.get("packages", {})
+            for tool_id, pkg in packages.items():
+                if pkg.get("status") == "active":
+                    entry = store.get_tool(tool_id)
+                    if entry:
+                        caps = entry.get("layer_3_capabilities", {})
+                        hooks = caps.get("hooks", {})
+                        for h_event, h_specs in hooks.items():
+                            active_hooks.setdefault(h_event, []).extend(h_specs)
+        except Exception:
+            pass
+            
+        result = run_hooks_for_event(event_name, active_hooks, context)
+        return _tool_result(result)
 
     if name == "get_agent_prompt":
         from skills_router.agent_bridge.prompts import render_agent_prompt
@@ -317,6 +401,69 @@ def _build_store(config: SkillsRouterConfig) -> MemoryBrainIndexStore:
         brain_index_path=config.brain_index_path,
         dep_graph_path=config.dep_graph_path,
     )
+
+
+def _get_active_mcp_specs(config: SkillsRouterConfig) -> dict[str, dict[str, Any]]:
+    from skills_router.storage.memory_store import MemoryBrainIndexStore
+    from skills_router.agent_bridge.routing import read_routing_state
+
+    mcp_specs = {}
+    try:
+        store = MemoryBrainIndexStore(
+            brain_index_path=config.brain_index_path,
+            dep_graph_path=config.dep_graph_path,
+        )
+        routing = read_routing_state(config)
+        packages = routing.get("packages", {})
+        for tool_id, pkg in packages.items():
+            if pkg.get("status") == "active":
+                entry = store.get_tool(tool_id)
+                if entry:
+                    caps = entry.get("layer_3_capabilities", {})
+                    mcp_servers = caps.get("mcp_servers", {})
+                    for server_name, server_spec in mcp_servers.items():
+                        mcp_specs[server_name] = server_spec
+    except Exception:
+        pass
+    return mcp_specs
+
+
+def _get_all_tools_specs(config: SkillsRouterConfig) -> list[dict[str, Any]]:
+    specs = list(_tool_specs())
+
+    specs.append({
+        "name": "run_agent_hook",
+        "description": "Execute lifecycle hooks (e.g. SessionStart) from active installed skills.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "event_name": {"type": "string", "description": "Name of hook event (e.g. SessionStart)"},
+                "context": {"type": "object", "description": "Context variables to pass to the hook environment"}
+            },
+            "required": ["event_name"]
+        }
+    })
+
+    active_mcp = _get_active_mcp_specs(config)
+    for server_name, spec in active_mcp.items():
+        declared_tools = spec.get("tools")
+        if isinstance(declared_tools, list):
+            specs.extend(declared_tools)
+        else:
+            command = spec.get("command")
+            args = spec.get("args") or []
+            env = spec.get("env")
+            if command:
+                try:
+                    from skills_router.layers.mcp_client import MCPClient
+                    client = MCPClient(command, args, env)
+                    discovered = client.discover_tools()
+                    specs.extend(discovered)
+                except Exception as e:
+                    logger.error(
+                        f"Error discovering tools from MCP server '{server_name}': {e}"
+                    )
+    return specs
 
 
 def _resolve_manifest(

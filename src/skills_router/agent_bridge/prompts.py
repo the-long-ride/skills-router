@@ -31,16 +31,51 @@ def render_agent_prompt(
     """
     profile = get_agent_profile(target)
     if detail == "full":
-        return _render_full_agent_prompt(profile, agent_id=agent_id)
-    if detail != "compact":
+        prompt = _render_full_agent_prompt(profile, agent_id=agent_id)
+    elif detail == "compact":
+        prompt = _render_compact_agent_prompt(profile, agent_id=agent_id)
+    else:
         raise ValueError("Prompt detail must be 'compact' or 'full'")
-    prompt = _render_compact_agent_prompt(profile, agent_id=agent_id)
+
     if config is not None:
         try:
             inventory = build_skill_inventory(config)
             prompt += "\n\n" + render_inventory_markdown(inventory)
         except Exception:
             pass
+
+        active_mcp_servers = {}
+        active_hooks = {}
+        try:
+            from skills_router.storage.memory_store import MemoryBrainIndexStore
+            from skills_router.agent_bridge.routing import read_routing_state
+            store = MemoryBrainIndexStore(
+                brain_index_path=config.brain_index_path,
+                dep_graph_path=config.dep_graph_path,
+            )
+            routing = read_routing_state(config)
+            packages = routing.get("packages", {})
+            for tool_id, pkg in packages.items():
+                if pkg.get("status") == "active":
+                    entry = store.get_tool(tool_id)
+                    if entry:
+                        caps = entry.get("layer_3_capabilities", {})
+                        mcp_servers = caps.get("mcp_servers", {})
+                        for name, spec in mcp_servers.items():
+                            active_mcp_servers[name] = spec
+                        hooks = caps.get("hooks", {})
+                        for event, hook_list in hooks.items():
+                            active_hooks.setdefault(event, []).extend(hook_list)
+        except Exception:
+            pass
+
+        if active_hooks:
+            prompt += "\n\n### Lifecycle Hooks\n"
+            prompt += "This agent has active lifecycle hooks. To execute them and load their context, call the `run_agent_hook` tool with the appropriate event name (e.g. SessionStart) at the start of a session or task."
+        if active_mcp_servers:
+            prompt += "\n\n### Proxied MCP Tools\n"
+            prompt += "Additional tools from installed active skills are dynamically available through this skills-router MCP connection. Call them directly as native tools."
+
     return prompt
 
 

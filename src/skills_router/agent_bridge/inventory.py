@@ -60,6 +60,8 @@ def build_skill_inventory(
                     brain_entry.get("source_metadata", {}).get("has_skill_md", False)
                 ),
                 "source_ref": brain_entry.get("_source_ref", ""),
+                "hooks": brain_entry.get("layer_3_capabilities", {}).get("hooks", {}),
+                "mcp_servers": brain_entry.get("layer_3_capabilities", {}).get("mcp_servers", {}),
             }
             skills.append(skill)
 
@@ -109,6 +111,12 @@ def render_inventory_markdown(inventory: dict[str, Any]) -> str:
                 f"(`{skill['tool_id']}.{skill['skill_id']}`)"
             )
             lines.append(f"  Use when: {use_when}")
+            if skill.get("hooks"):
+                hooks_str = ", ".join(skill["hooks"].keys())
+                lines.append(f"  Hooks: {hooks_str}")
+            if skill.get("mcp_servers"):
+                mcp_str = ", ".join(skill["mcp_servers"].keys())
+                lines.append(f"  MCP Servers: {mcp_str}")
         lines.append("")
 
     if pending:
@@ -219,6 +227,22 @@ def use_skill(
                     f"- **Inputs:** {', '.join(inputs_list)}"
                 )
 
+    # Hooks
+    hooks = capabilities.get("hooks", {})
+    if hooks:
+        sections.append("")
+        sections.append("## Hooks")
+        for hook_name, hook_spec in hooks.items():
+            sections.append(f"- **{hook_name}**: {hook_spec}")
+
+    # MCP Servers
+    mcp_servers = capabilities.get("mcp_servers", {})
+    if mcp_servers:
+        sections.append("")
+        sections.append("## MCP Servers")
+        for server_name, server_spec in mcp_servers.items():
+            sections.append(f"- **{server_name}**: {server_spec}")
+
     # Domain tags
     domains = brain_entry.get("layer_1_domain_tags", [])
     if domains:
@@ -256,6 +280,8 @@ def use_skill(
         "status": package.get("status", "active"),
         "scope": package.get("scope", "global"),
         "has_skill_md": bool(skill_md_content),
+        "hooks": capabilities.get("hooks", {}),
+        "mcp_servers": capabilities.get("mcp_servers", {}),
     }
 
     return {

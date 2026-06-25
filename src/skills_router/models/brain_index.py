@@ -20,6 +20,8 @@ class Capabilities:
     outputs: list[str] = field(default_factory=list)
     permissions: list[str] = field(default_factory=list)
     extensible: bool = False
+    hooks: dict[str, Any] = field(default_factory=dict)
+    mcp_servers: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -112,6 +114,8 @@ class BrainIndexEntry:
             outputs=caps_data.get("outputs", []),
             permissions=caps_data.get("permissions", []),
             extensible=caps_data.get("extensible", False),
+            hooks=caps_data.get("hooks", {}),
+            mcp_servers=caps_data.get("mcp_servers", {}),
         )
 
         tel_data = data.get("layer_4_telemetry", {})
@@ -194,6 +198,8 @@ class BrainIndexEntry:
                 "outputs": list(self.layer_3_capabilities.outputs),
                 "permissions": list(self.layer_3_capabilities.permissions),
                 "extensible": self.layer_3_capabilities.extensible,
+                "hooks": copy.deepcopy(self.layer_3_capabilities.hooks),
+                "mcp_servers": copy.deepcopy(self.layer_3_capabilities.mcp_servers),
             },
             "layer_4_telemetry": {
                 "virtual_env_isolated": self.layer_4_telemetry.virtual_env_isolated,

@@ -53,14 +53,44 @@ def build_agent_connection(
         _slash_command_entry(raw, config, recommended=idx == 0)
         for idx, raw in enumerate(profile.slash_command_files)
     ]
-    return {
+    active_mcp_servers = {}
+    active_hooks = {}
+    from skills_router.storage.memory_store import MemoryBrainIndexStore
+    from skills_router.agent_bridge.routing import read_routing_state
+    try:
+        store = MemoryBrainIndexStore(
+            brain_index_path=config.brain_index_path,
+            dep_graph_path=config.dep_graph_path,
+        )
+        routing = read_routing_state(config)
+        packages = routing.get("packages", {})
+        for tool_id, pkg in packages.items():
+            if pkg.get("status") == "active":
+                entry = store.get_tool(tool_id)
+                if entry:
+                    caps = entry.get("layer_3_capabilities", {})
+                    mcp_servers = caps.get("mcp_servers", {})
+                    for name, spec in mcp_servers.items():
+                        active_mcp_servers[name] = spec
+                    hooks = caps.get("hooks", {})
+                    for event, hook_list in hooks.items():
+                        active_hooks.setdefault(event, []).extend(hook_list)
+    except Exception:
+        pass
+
+    mcp_servers = {"skills-router": mcp_server}
+    if active_mcp_servers:
+        mcp_servers.update(active_mcp_servers)
+
+    hooks_config = _build_hooks_config(active_hooks, from_source=from_source)
+    res_dict = {
         "status": "OK",
         "target": profile.target,
         "display_name": profile.display_name,
         "agent_id": agent_id,
         "preferred_bridge": profile.preferred_bridge,
         "mode": "from_source" if from_source else "installed_cli",
-        "mcp_config": {"mcpServers": {"skills-router": mcp_server}},
+        "mcp_config": {"mcpServers": mcp_servers},
         "mcp_server": mcp_server,
         "bridge_prompt": bridge_prompt,
         "instruction_files": instruction_files,
@@ -72,6 +102,11 @@ def build_agent_connection(
             "server config and the bridge prompt to the target instruction file."
         ),
     }
+    if active_hooks:
+        res_dict["hooks"] = active_hooks
+    if hooks_config:
+        res_dict["hooks_config"] = hooks_config
+    return res_dict
 
 
 def build_detected_agent_connections(
@@ -83,6 +118,7 @@ def build_detected_agent_connections(
 ) -> dict[str, Any]:
     """Return detected global AI-agent skill folders for connect."""
     return _build_global_agent_connection(
+        config=config,
         agent_id=agent_id,
         detail=detail,
         from_source=from_source,
@@ -415,10 +451,36 @@ def _slash_command_document(connection: dict[str, Any]) -> str:
 
 def _build_global_agent_connection(
     *,
+    config: SkillsRouterConfig,
     agent_id: str,
     detail: str,
     from_source: bool,
 ) -> dict[str, Any]:
+    active_mcp_servers = {}
+    active_hooks = {}
+    from skills_router.storage.memory_store import MemoryBrainIndexStore
+    from skills_router.agent_bridge.routing import read_routing_state
+    try:
+        store = MemoryBrainIndexStore(
+            brain_index_path=config.brain_index_path,
+            dep_graph_path=config.dep_graph_path,
+        )
+        routing = read_routing_state(config)
+        packages = routing.get("packages", {})
+        for tool_id, pkg in packages.items():
+            if pkg.get("status") == "active":
+                entry = store.get_tool(tool_id)
+                if entry:
+                    caps = entry.get("layer_3_capabilities", {})
+                    mcp_servers = caps.get("mcp_servers", {})
+                    for name, spec in mcp_servers.items():
+                        active_mcp_servers[name] = spec
+                    hooks = caps.get("hooks", {})
+                    for event, hook_list in hooks.items():
+                        active_hooks.setdefault(event, []).extend(hook_list)
+    except Exception:
+        pass
+
     mcp_server = _mcp_server_spec(from_source=from_source)
     detected_targets: list[dict[str, Any]] = []
     missing_targets: list[dict[str, Any]] = []
@@ -483,14 +545,19 @@ def _build_global_agent_connection(
             f"{suffix}"
         )
 
-    return {
+    mcp_servers = {"skills-router": mcp_server}
+    if active_mcp_servers:
+        mcp_servers.update(active_mcp_servers)
+
+    hooks_config = _build_hooks_config(active_hooks, from_source=from_source)
+    res_dict = {
         "status": "OK",
         "target": "all",
         "display_name": "Detected AI-agent hosts",
         "agent_id": agent_id,
         "preferred_bridge": "global-skill",
         "mode": "from_source" if from_source else "installed_cli",
-        "mcp_config": {"mcpServers": {"skills-router": mcp_server}},
+        "mcp_config": {"mcpServers": mcp_servers},
         "mcp_server": mcp_server,
         "detected_target_count": len(detected_targets),
         "missing_target_count": len(missing_targets),
@@ -502,6 +569,11 @@ def _build_global_agent_connection(
             "Connect writes managed Skills Router skills to their global folders."
         ),
     }
+    if active_hooks:
+        res_dict["hooks"] = active_hooks
+    if hooks_config:
+        res_dict["hooks_config"] = hooks_config
+    return res_dict
 
 
 def _write_bridge_skill_path(
@@ -799,3 +871,24 @@ def _replace_or_append_block(text: str, block: str) -> str:
     if stripped:
         return stripped + "\n\n" + block + "\n"
     return block + "\n"
+
+
+def _build_hooks_config(
+    active_hooks: dict[str, list[dict[str, Any]]],
+    *,
+    from_source: bool,
+) -> dict[str, Any] | None:
+    """Generate recommended agent-host hook settings if active hooks exist."""
+    if not active_hooks:
+        return None
+    base = "python -m skills_router.cli" if from_source else "skills-router"
+    hooks_spec = {}
+    for event in sorted(active_hooks.keys()):
+        hooks_spec[event] = [
+            {
+                "type": "command",
+                "command": f"{base} run-hook {event} --json",
+                "async": False,
+            }
+        ]
+    return {"hooks": hooks_spec}
